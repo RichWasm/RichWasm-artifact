@@ -1,0 +1,1 @@
+# RichWasm-artifact
