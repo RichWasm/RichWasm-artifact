@@ -1,0 +1,39 @@
+(((Fun (main) (() (() (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)) 
+))) ()
+ (
+  (IVal (Num (Int U I64) (First 0))) 
+  (ICoderefI 1) 
+  (ICall_indirect      
+    ((((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)))
+      (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)))))
+  (ICoderefI 2)
+  (IInst ((SizeI (SizeC 64)) (PretypeI (Num (Int U I64)))))
+  (ICall_indirect      
+    ((((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)))
+      (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)))))
+  (ICoderefI 3)
+  (IInst ((SizeI (SizeC 64)) (PretypeI (Num (Int U I64)))))
+  (ICall_indirect      
+    ((((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)))
+      (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr)))))
+  (IVal Unit)  
+  ))
+(Fun () 
+ (()
+  ((((Num (Int U I64)) (QualC Unr))) (((Num (Int U I64)) (QualC Unr)))))
+ () (
+  (IGet_local 0 (QualC Unr) (Num (Int U I64)))
+  ))
+(Fun ()
+ (((Size () ()) (Type (QualC Unr) (SizeV 0) Heapable))
+  ((((Var 0) (QualC Unr))) (((Var 0) (QualC Unr)))))
+ () (
+  (IGet_local 0 (QualC Unr) (Var 0))
+  ))
+(Fun ()
+ (((Size () ((SizeC 96))) (Type (QualC Unr) (SizeV 0) Heapable))
+  ((((Var 0) (QualC Unr))) (((Var 0) (QualC Unr)))))
+ () (
+  (IGet_local 0 (QualC Unr) (Var 0))
+  )))
+() (1 2 3))

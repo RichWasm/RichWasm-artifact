@@ -1,0 +1,22 @@
+import main.get_multiplier : !(A. !I, !E l. Ref! l !Int 1 -o !Int) in
+export new_ = A. fun * : !I, multiplier : !E l. Ref! l !Int 1.
+  join new <!0, !0, multiplier> 4
+in
+export add_sample = A. fun * : !I, r : E l. Ref l <!Int, !Int, !E l. Ref! l !Int 1> 4, sample : !Int.
+  let {l, c_and_p} = split r in
+  let <cap, ptr> = c_and_p in
+  let <cap, vals> = swap ptr <cap, !*> in
+  let <sum, count, multiplier_ref> = vals in
+  let <multiplier> = <(get_multiplier !*, multiplier_ref)> in
+  let <cap, *> = swap ptr <cap, <( + sum ( * sample multiplier)), ( + count multiplier), multiplier_ref>> in
+  join {l, <cap, ptr>}
+in
+export average = A. fun * : !I, r : E l. Ref l <!Int, !Int, !E l. Ref! l !Int 1> 4.
+  let {l, c_and_p} = split r in
+  let <cap, ptr> = c_and_p in
+  let <cap, vals> = swap ptr <cap, !*> in
+  let <sum, count, multiplier_ref> = vals in
+  let <cap, *> = swap ptr <cap, <sum, count, multiplier_ref>> in
+  <join {l, <cap, ptr>}, ( / sum count)>
+in
+*

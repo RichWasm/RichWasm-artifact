@@ -1,0 +1,14 @@
+(library
+ (name l3)
+ (libraries core angstrom rich_wasm)
+ (modules l3 syntax parse tagging source_printer debruijn typecheck codegen)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(executable
+ (name rich_wasm_of_l3)
+ (libraries core core_unix.command_unix rich_wasm l3)
+ (modules rich_wasm_of_l3)
+ (preprocess
+  (pps ppx_jane)))

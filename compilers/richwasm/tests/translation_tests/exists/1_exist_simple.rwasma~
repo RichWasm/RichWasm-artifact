@@ -1,0 +1,28 @@
+(((Fun () (() (() (((Num (Int U I64)) (QualC Unr))))) ()
+     ((IVal (Num (Int U I64) (First 5))) (ICoderefI 0) (IGroup 2 (QualC Unr))
+      (IExistPack (Num (Int U I64))
+       (Ex (QualC Unr) (SizeC 64)
+        ((Prod
+          (((Var 0) (QualC Unr))
+           ((Coderef
+             (() ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+            (QualC Unr))))
+         (QualC Unr)))
+       (QualC Unr))
+      (IMemUnpack (() (((Num (Int U I64)) (QualC Unr)))) ()
+       ((IExistUnpack (QualC Unr) (() (((Num (Int U I64)) (QualC Unr)))) ()
+         (IUngroup
+          (ICall_indirect
+           ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+         ((Prod
+           (((Var 0) (QualC Unr))
+            ((Coderef
+              (()
+               ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+             (QualC Unr))))
+          (QualC Unr)))))))
+    (Fun ()
+     (()
+      ((((Num (Int U I64)) (QualC Unr))) (((Num (Int U I64)) (QualC Unr)))))
+     () ((IGet_local 0 (QualC Unr) (Num (Int U I64))))))
+   () (1))

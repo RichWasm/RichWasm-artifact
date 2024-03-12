@@ -1,0 +1,19 @@
+[package]
+name = "rwasm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ordered-float = "3.2.0"
+wasabi_wasm = { git = "https://github.com/michelledaviest/wasabi", rev = "3ab517dd82ca80f39ee1f3cc3798be402cb6727d" }
+
+# For parsing CapWasm textual representation 
+nom = "7.1.1"
+lazy_static = "1.4.0"
+clap = { version = "4.4.6", features = ["derive"] }
+wasmtime = "14.0.4"
+itertools = "0.11.0"
+anyhow = "1.0.75"
+log = "0.4.20"

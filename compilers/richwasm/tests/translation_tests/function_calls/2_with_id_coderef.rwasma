@@ -1,0 +1,21 @@
+(((Fun ()
+    (()
+    ((((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr)))
+      (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr)))))
+    ()
+    (
+      (IGet_local 0 (QualC Unr) (Num (Int U I32)))
+      (IGet_local 1 (QualC Unr) Unit)
+    ))
+  (Fun (main) (() (() (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr))))) ()
+    (
+      (IVal (Num (Int U I32) (Second 0))) 
+      (IVal Unit) 
+      (ICoderefI 0)
+      (ICall_indirect      
+        (
+          (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr)))
+          (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr)))
+        ))
+    )))
+  () (0))

@@ -1,0 +1,25 @@
+export new_ = A. fun * : !I.
+  join new <!0, !0> 2
+in
+export free_ = A. fun r : E l. Ref l <!Int, !Int> 2.
+  let {_, vals} = free split r in
+  let <_, _> = vals in
+  !*
+in
+export add_sample = A. fun r : E l. Ref l <!Int, !Int> 2, sample : !Int.
+  let {l, c_and_p} = split r in
+  let <cap, ptr> = c_and_p in
+  let <cap, vals> = swap ptr <cap, !*> in
+  let <sum, count> = vals in
+  let <cap, *> = swap ptr <cap, <( + sum sample), ( + count 1)>> in
+  join {l, <cap, ptr>}
+in
+export average = A. fun r : E l. Ref l <!Int, !Int> 2.
+  let {l, c_and_p} = split r in
+  let <cap, ptr> = c_and_p in
+  let <cap, vals> = swap ptr <cap, !*> in
+  let <sum, count> = vals in
+  let <cap, *> = swap ptr <cap, <sum, count>> in
+  <join {l, <cap, ptr>}, ( / sum count)>
+in
+*

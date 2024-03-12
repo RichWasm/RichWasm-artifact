@@ -1,0 +1,11 @@
+import rolling_averages.new_ : !(A. !I -o E l. Ref l <!Int, !Int> 2) in
+import rolling_averages.add_sample : !(A. E l. Ref l <!Int, !Int> 2, !Int -o E l. Ref l <!Int, !Int> 2) in
+import rolling_averages.average : !(A. E l. Ref l <!Int, !Int> 2 -o <E l. Ref l <!Int, !Int> 2, !Int>) in
+import rolling_averages.free_ : !(A. E l. Ref l <!Int, !Int> 2 -o !I) in
+let <r> = <(new_ !*)> in
+let <r> = <(add_sample r, !1)> in
+let <r> = <(add_sample r, !20)> in
+let <r> = <(add_sample r, !9)> in
+let <r, avg> = (average r) in
+let * = (free_ r) in
+avg

@@ -1,0 +1,68 @@
+(((Fun ()
+    (
+      (
+        (Size () ()) 
+        (Type (QualC Unr) (SizeV 0) Heapable)
+      )
+      (
+        (((Var 0) (QualC Unr))) 
+        (((Var 0) (QualC Unr)))
+      )
+    )
+    ((SizeV 0))
+    (
+      (IGet_local 0 (QualC Unr) (Var 0)) 
+      (ISet_local 1 ((Var 0) (QualC Unr)))
+      (IGet_local 1 (QualC Unr) (Var 0))
+    )
+  )
+  (Fun (main)
+    (
+      ()
+      (
+        ()
+        (
+          ((Num (Int U I32)) (QualC Unr)) 
+          (Unit (QualC Unr))
+          ((Num (Int U I32)) (QualC Unr)) 
+          ((Num (Int U I32)) (QualC Unr))
+          ((Num (Int U I64)) (QualC Unr)) 
+          ((Num (Int U I32)) (QualC Unr))
+          ((Num (Int U I64)) (QualC Unr)) 
+          (Unit (QualC Unr))
+          ((Num (Int U I32)) (QualC Unr))
+        )
+      )
+    )
+    ((SizeC 288))
+    (
+      (IVal (Num (Int U I32) (Second 0))) 
+      (IVal Unit)
+      (IVal (Num (Int U I32) (Second 1))) 
+      (IVal (Num (Int U I32) (Second 2)))
+      (IVal (Num (Int U I64) (First 3))) 
+      (IVal (Num (Int U I32) (Second 4)))
+      (IVal (Num (Int U I64) (First 5))) 
+      (IVal Unit)
+      (IVal (Num (Int U I32) (Second 6))) 
+      (IGroup 3 (QualC Unr))
+      (IGroup 7 (QualC Unr))
+      (ICall 0
+        (
+          (SizeI (SizeC 288))
+          (PretypeI
+            (Prod
+            (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr))
+              ((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
+              ((Num (Int U I64)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
+              ((Prod
+                (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr))
+                ((Num (Int U I32)) (QualC Unr))))
+              (QualC Unr))))
+          )
+        )
+      )
+      IUngroup 
+      IUngroup
+    )))
+  () ())

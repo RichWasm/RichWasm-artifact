@@ -1,0 +1,24 @@
+(library
+ (name ml)
+ (libraries core angstrom rich_wasm)
+ (modules
+  ml
+  syntax
+  parse
+  tagging
+  source_printer
+  debruijn
+  typecheck
+  hoist
+  annotate
+  codegen)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(executable
+ (name rich_wasm_of_ml)
+ (libraries core core_unix.command_unix rich_wasm ml)
+ (modules rich_wasm_of_ml)
+ (preprocess
+  (pps ppx_jane)))

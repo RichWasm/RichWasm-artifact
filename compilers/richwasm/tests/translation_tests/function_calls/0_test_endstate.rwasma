@@ -1,0 +1,3 @@
+(((Fun (main) (() (() (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr))))) ()
+     ((IVal (Num (Int U I32) (Second 0))) (IVal Unit))))
+   () ())

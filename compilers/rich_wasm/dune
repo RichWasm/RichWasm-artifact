@@ -1,0 +1,77 @@
+(library
+ (name typing_defs)
+ (libraries core rich_wasm solver substitution)
+ (modules typing_defs)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name substitution)
+ (libraries core rich_wasm)
+ (modules substitution)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name solver)
+ (libraries core z3 rich_wasm)
+ (modules solver)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name rich_wasm)
+ (libraries core)
+ (modules rich_wasm)
+ (inline_tests)
+ (flags
+  (-w -26))
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name rich_wasm_compiler_interface)
+ (libraries core rich_wasm)
+ (modules rich_wasm_compiler_interface)
+ (flags
+  (-w -26))
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name rich_wasm_typechecker)
+ (libraries
+  core
+  rich_wasm
+  rich_wasm_compiler_interface
+  substitution
+  typing_defs
+  solver)
+ (modules rich_wasm_typechecker sizing)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name typechecking_tests)
+ (libraries core rich_wasm rich_wasm_typechecker)
+ (modules typechecking_tests)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(executable
+ (name annotated_rich_wasm_of_rich_wasm)
+ (libraries
+  core
+  core_unix.command_unix
+  rich_wasm
+  rich_wasm_typechecker
+  rich_wasm_compiler_interface)
+ (modules annotated_rich_wasm_of_rich_wasm)
+ (preprocess
+  (pps ppx_jane)))

@@ -1,0 +1,29 @@
+(((Fun (main) (() (() (((Num (Int U I64)) (QualC Unr))))) ()
+ (
+  (IVal (Num (Int U I64) (First 5)))
+  (IVariantMalloc 1
+   (
+    (Unit (QualC Unr)) 
+    ((Num (Int U I64)) (QualC Unr))
+    (Unit (QualC Unr))
+   )
+   (QualC Lin)
+  )
+  (IMemUnpack (() (((Num (Int U I64)) (QualC Unr)))) ()
+   (
+    (IVariantCase 
+      (QualC Lin) 
+      (
+        (Unit (QualC Unr)) 
+        ((Num (Int U I64)) (QualC Unr))
+        (Unit (QualC Unr))
+      )
+      (() (((Num (Int U I64)) (QualC Unr)))) 
+      ()
+      (
+        (IUnreachable) 
+        () 
+        (IUnreachable)
+      )
+    ))))))
+() ())
