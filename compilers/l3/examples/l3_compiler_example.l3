@@ -1,4 +1,0 @@
-import ml_compiler_example.simple_interop : !(A. !I, E l. Ref l !Int 1 -o E l. Ref l !Int 1) in
-let! simple_interop = simple_interop in
-let {_,_} = free split (simple_interop !*, join new !42 1) in
-!*
