@@ -1,0 +1,3 @@
+import ml.id_no_lin : !(A. !I, E l. Ref l !Int 1 -o E l. Ref l ! Int 1) in
+export id_pair_lin = A. fun * : !I, p : <!Int, !Int>. p in
+*
