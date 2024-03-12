@@ -1,0 +1,9 @@
+import recursive_store.stash : !(A. !I, E l. Ref l !Int 1 -o !I) in
+import recursive_store.unstash : !(A. !I -o E l. Ref l !Int 1) in
+export get = A. fun * : !I.
+  let {_, val} = free split (unstash !*) in
+  val
+in
+let * = (stash !*, join new !42 1) in
+let * = (stash !*, join new !90 1) in
+*
