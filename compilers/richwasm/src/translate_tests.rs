@@ -334,7 +334,7 @@ fn test_function_calls() {
 
  
  #[test]
- fn variant_0() {
+ fn test_variant_0() {
      let mut wasm_results = vec![wasmtime::Val::I64(-1)];
      test_file(
          "./tests/translation_tests/variants/0_test_endstate.rwasma",
@@ -346,7 +346,7 @@ fn test_function_calls() {
  
  
  #[test]
- fn variant_1() {
+ fn test_variant_1() {
      let mut wasm_results = vec![wasmtime::Val::I64(-1)];
      test_file(
          "./tests/translation_tests/variants/1_variant_simple.rwasma",
@@ -357,7 +357,7 @@ fn test_function_calls() {
  }
  
  #[test]
- fn variant_2() {
+ fn test_variant_2() {
      let mut wasm_results = vec![wasmtime::Val::I64(-1)];
      test_file(
          "./tests/translation_tests/variants/2_with_groups.rwasma",
@@ -369,7 +369,7 @@ fn test_function_calls() {
  
  
  #[test]
- fn el1() {
+ fn test_exists() {
      let mut wasm_results = vec![wasmtime::Val::I64(-1)];
      test_file(
          "./tests/translation_tests/exists/1_exist_simple.rwasma",
