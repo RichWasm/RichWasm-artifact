@@ -157,8 +157,26 @@ test parse_tests::parse_instruction_tests ... ok
 ```
 
 ### Structure of Compilers Directory
-- `ml/`: TODO  
-- `l3/`: TODO 
+- `ml/`: Compiler from ML to RichWasm.
+    - `syntax.ml`: Abstract syntax for each phase of the compiler.
+    - `parse.ml`: Parser for ML. A comment describing the grammar is included at the bottom.
+    - `tagging.ml` and `source_printer.ml`: Annotate the tree with some extra information to improve typechecking errors (e.g. recover variable names after the debruijn transformation).
+    - `debruijn.ml`: Transforms variable names into debruijn indices.
+    - `typecheck.ml`: Typechecks ML.
+    - `hoist.ml`: Performs closure conversion and hoists all functions to the top-level.
+    - `annotate.ml`: Annotates programs with size/qual information needed by RichWasm.
+    - `codegen.ml`: Produces RichWasm code.
+    - `ml.ml`: Combines all phases.
+    - `rich_wasm_of_ml.ml`: Creates an executable which can be used to compile ML files to RichWasm.
+- `l3/`: Compiler from L3 to RichWasm.
+    - `syntax.ml`: Abstract syntax for each phase of the compiler.
+    - `parse.ml`: Parser for L3. A comment describing the grammar is included at the bottom.
+    - `tagging.ml` and `source_printer.ml`: Annotate the tree with some extra information to improve typechecking errors (e.g. recover variable names after the debruijn transformation).
+    - `debruijn.ml`: Transforms variable names into debruijn indices.
+    - `typecheck.ml`: Typechecks L3.
+    - `codegen.ml`: Produces RichWasm code.
+    - `l3.ml`: Combines all phases.
+    - `rich_wasm_of_l3.ml`: Creates an executable which can be used to compile L3 files to RichWasm.
 - `rich_wasm/`: RichWasm typechecker and annotator (annotated RichWasm is then compiled to WebAssembly with the compiler described in the next bullet).
     - `rich_wasm.ml`: Syntax of RichWasm.
     - `rich_wasm_compiler_interface.ml`: Syntax of annotated RichWasm, which contains additional type information (discovered during typechecking) needed by the RichWasm compiler described below.
