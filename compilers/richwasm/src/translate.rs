@@ -485,7 +485,6 @@ impl Type {
                 for (callee_ty, caller_ty) in
                     callee_vec_ty.iter().rev().zip(caller_vec_ty.iter().rev())
                 {
-                    trace!("THis is before we od anything with prod ");
                     trace!("INSTRS: "); 
                     instrs.iter().for_each(|i| trace!("  {i}"));
                     trace!("CALLEE type in Prod: {callee_ty:?}");
@@ -829,21 +828,17 @@ impl FunctionType {
             }
         }
         let context = FunctionContext::new(typevar_size.clone(), &size_bounds, &qual_bounds);
-        trace!("here");
         let params: Vec<wasm::ValType> = self
             .params
             .iter()
             .flat_map(|ty| ty.to_wasm_types(&context))
             .collect();
-        trace!("here2");
         let results: Vec<wasm::ValType> = self
             .results
             .iter()
             .flat_map(|ty| ty.to_wasm_types(&context))
             .collect();
-        trace!("here3");
         let ft = wasm::FunctionType::new(&params, &results);
-        trace!("here4");
         (ft, context)
     }
 }
@@ -868,7 +863,6 @@ impl Size {
             Size::Abstract(ty) => {
                 trace!("getting size of abstract size variable");
                 let x = size_variable_bounds.get(&ty.0).unwrap();
-                trace!("gottit");
                 *x
             }
 

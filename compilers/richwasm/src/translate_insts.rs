@@ -256,7 +256,7 @@ fn resolve_set_operations(
         let local_ty = var_shape.get(num_locals_set).unwrap();
         let wasm_local_idx = *wasm_locals.get(num_locals_set).unwrap();
 
-        print!(
+        trace!(
             "leftover:{} stack_ty:{stack_ty:?} var_ty:{local_ty:?}",
             leftover.is_some() as usize
         );
@@ -460,7 +460,7 @@ fn resolve_get_operations(
         let stack_ty = stack_shape.get(num_slot).unwrap();
         let wasm_local_idx = *wasm_locals.get(num_local_get).unwrap();
 
-        print!(
+        trace!(
             "leftover:{} stack_ty:{stack_ty:?} var_ty:{local_ty:?}",
             leftover.is_some() as usize
         );
