@@ -195,6 +195,7 @@ pub(crate) enum ImportOrPresent {
     Present(Vec<Instr>),
 }
 
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Global {
     //id: Ind<Global>,
@@ -414,9 +415,9 @@ pub(crate) enum ArrayOp {
 pub(crate) enum StructOp {
     Malloc(Vec<Size>, Qual),
     Get(u32),
-    Set(u32),
+    Set(u32, PreType),
     Free,
-    Swap(u32),
+    Swap(u32, PreType),
 } //u32 being passed is field number
 
 pub(crate) type InstrList = Vec<Instr>;
@@ -428,7 +429,7 @@ pub(crate) enum Instr {
 
     Unreachable,
     Nop,
-    Drop,
+    Drop(PreType),
 
     Block(BlockType, LocalEffect, InstrList),
     Loop(BlockType, InstrList),
@@ -462,7 +463,7 @@ pub(crate) enum Instr {
     RefDemote,
 
     MemPack(Loc),
-    MemUnpack(BlockType, LocalEffect, InstrList),
+    MemUnpack(BlockType, LocalEffect, InstrList, Type),
 
     Struct(StructOp, Vec<Type>),
     Array(ArrayOp, Type),

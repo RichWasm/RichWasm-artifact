@@ -12,6 +12,7 @@ pub mod rwasm;
 pub mod translate;
 pub mod translate_insts;
 pub mod translate_tests;
+pub mod interop_tests;
 
 use std::{io, path::PathBuf};
 
@@ -43,6 +44,8 @@ fn main() -> io::Result<()> {
     let file = PathBuf::from(&path);
     let single_module = args.single;
 
+    // FIXME: We don't want to just file clone, we want to dump to terminal. 
+    // File clone means that we are over-writing the richwasm module being compiled 
     let wasm_file = &match args.wasm_file {
         Some(f) => PathBuf::from(f),
         None => file.clone(),
@@ -51,7 +54,7 @@ fn main() -> io::Result<()> {
     let rwasm_modules = rwasm::Module::from_file(&file, single_module).unwrap();
 
     for (ind, module) in rwasm_modules.iter().enumerate() {
-        let wasm = module.translate(ind);
+        let wasm = module.translate(ind.to_string());
 
         let wasm_file = if single_module {
             wasm_file.clone()

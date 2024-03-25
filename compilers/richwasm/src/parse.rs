@@ -48,12 +48,12 @@ where
 }
 
 fn _bool(input: &str) -> IResult<&str, bool> {
-    trace!("bool");
+    trace!("Parsing Bool");
     alt((value(false, ws(tag("false"))), value(true, ws(tag("true")))))(input)
 }
 
 fn cap(input: &str) -> IResult<&str, Cap> {
-    trace!("cap");
+    trace!("Parsing Cap");
     alt((
         value(Cap::Read, ws(tag("R"))),
         value(Cap::ReadWrite, ws(tag("W"))),
@@ -61,7 +61,7 @@ fn cap(input: &str) -> IResult<&str, Cap> {
 }
 
 fn heapable_const(input: &str) -> IResult<&str, HeapableConst> {
-    trace!("hc");
+    trace!("Parsing Heapable Const");
     alt((
         value(HeapableConst::Heapable, ws(tag("Heapable"))),
         value(HeapableConst::NotHeapable, ws(tag("NotHeapable"))),
@@ -69,13 +69,13 @@ fn heapable_const(input: &str) -> IResult<&str, HeapableConst> {
 }
 
 fn sign(input: &str) -> IResult<&str, Sign> {
-    trace!("sign");
+    trace!("Parsing Sign");
 
     alt((value(Sign::S, ws(tag("S"))), value(Sign::U, ws(tag("U")))))(input)
 }
 
 fn qual(input: &str) -> IResult<&str, Qual> {
-    trace!("qual");
+    trace!("Parsing Qual");
 
     fn qual_const(input: &str) -> IResult<&str, Qual> {
         ws(alt((
@@ -97,7 +97,7 @@ fn qual(input: &str) -> IResult<&str, Qual> {
 }
 
 fn size(input: &str) -> IResult<&str, Size> {
-    trace!("size");
+    trace!("Parsing Size");
 
     fn sizec(input: &str) -> IResult<&str, Size> {
         map(ws(u32), Size::Concrete)(input)
@@ -123,7 +123,7 @@ fn size(input: &str) -> IResult<&str, Size> {
 }
 
 fn loc(input: &str) -> IResult<&str, Loc> {
-    trace!("loc");
+    trace!("Parsing Loc");
 
     sexp(map(preceded(ws(tag("LocV")), ws(u32)), |digit| Loc {
         _abstract: TypeVar::<Loc>(digit, PhantomData),
@@ -131,7 +131,7 @@ fn loc(input: &str) -> IResult<&str, Loc> {
 }
 
 fn vardecl(input: &str) -> IResult<&str, VarDecl> {
-    trace!("vardecl");
+    trace!("Parsing VarDecl");
 
     fn loc_var_decl(input: &str) -> IResult<&str, VarDecl> {
         Ok((input, VarDecl::Loc))
@@ -165,7 +165,7 @@ fn vardecl(input: &str) -> IResult<&str, VarDecl> {
 }
 
 fn numtype(input: &str) -> IResult<&str, ConstType> {
-    trace!("numtype");
+    trace!("Parsing Numtypes");
     
     fn int_type(input: &str) -> IResult<&str, ConstType> {
         let (input, s) = ws(sign)(input)?;
@@ -189,7 +189,7 @@ fn numtype(input: &str) -> IResult<&str, ConstType> {
 }
 
 fn pretype(input: &str) -> IResult<&str, PreType> {
-    trace!("pretype, {input}");
+    trace!("Parsing PreType");
 
     fn _num(input: &str) -> IResult<&str, PreType> {
         map(ws(numtype), PreType::Constant)(input)
@@ -259,7 +259,7 @@ fn pretype(input: &str) -> IResult<&str, PreType> {
 }
 
 fn heaptype(input: &str) -> IResult<&str, HeapType> {
-    trace!("ht");
+    trace!("Parsing HeapType");
 
     fn variant(input: &str) -> IResult<&str, HeapType> {
         map(ws(vec(_type)), HeapType::Variant)(input)
@@ -291,7 +291,7 @@ fn heaptype(input: &str) -> IResult<&str, HeapType> {
 }
 
 fn blocktype(input: &str) -> IResult<&str, BlockType> {
-    trace!("bt");
+    trace!("Parsing BlockType");
 
     sexp(map(
         tuple((ws(vec(_type)), ws(vec(_type)))),
@@ -300,7 +300,7 @@ fn blocktype(input: &str) -> IResult<&str, BlockType> {
 }
 
 pub(crate) fn _type(input: &str) -> IResult<&str, Type> {
-    trace!("type");
+    trace!("Parsing Type input {:?}", input.get(..50));
 
     sexp(map(tuple((ws(pretype), ws(qual))), |(pt, q)| {
         Type(Box::new(pt), q)
@@ -308,7 +308,7 @@ pub(crate) fn _type(input: &str) -> IResult<&str, Type> {
 }
 
 fn functiontype(input: &str) -> IResult<&str, FunctionType> {
-    trace!("ft");
+    trace!("Parsing FunctionType");
 
     sexp(map(
         tuple((
@@ -324,7 +324,7 @@ fn functiontype(input: &str) -> IResult<&str, FunctionType> {
 }
 
 fn table(input: &str) -> IResult<&str, Table> {
-    trace!("table");
+    trace!("Parsing Table");
 
     sexp(map(many0(ws(u32)), |vec_digits| Table {
         entries: vec_digits
@@ -335,7 +335,7 @@ fn table(input: &str) -> IResult<&str, Table> {
 }
 
 fn local_effect(input: &str) -> IResult<&str, LocalEffect> {
-    trace!("local effect");
+    trace!("Parsing Local Effects");
 
     sexp(map(many0(sexp(tuple((ws(u32), ws(_type))))), |v| {
         LocalEffect(
@@ -347,7 +347,7 @@ fn local_effect(input: &str) -> IResult<&str, LocalEffect> {
 }
 
 fn index(input: &str) -> IResult<&str, Index> {
-    trace!("index");
+    trace!("Parsing Index");
 
     fn loci(input: &str) -> IResult<&str, Index> {
         map(ws(loc), Index::Loc)(input)
@@ -374,7 +374,7 @@ fn index(input: &str) -> IResult<&str, Index> {
 }
 
 fn val(input: &str) -> IResult<&str, Val> {
-    trace!("val");
+    trace!("Parsing Val");
     alt((
         value(Val::I32, ws(tag("I32"))),
         value(Val::I64, ws(tag("I64"))),
@@ -384,9 +384,10 @@ fn val(input: &str) -> IResult<&str, Val> {
 }
 
 fn numeric(input: &str) -> IResult<&str, NumericInstr> {
-    trace!("numeric");
+    trace!("Parsing Numeric");
     fn iu(input: &str) -> IResult<&str, NumericInstr> {
         fn iunop_i32(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing IUnOp32");
             alt((
                 value(UnaryOp::I32Clz, ws(tag("Iclz"))),
                 value(UnaryOp::I32Ctz, ws(tag("Ictz"))),
@@ -395,6 +396,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn iunop_i64(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing IUnOp64");
             alt((
                 value(UnaryOp::I64Clz, tag("Iclz")),
                 value(UnaryOp::I64Ctz, tag("Ictz")),
@@ -413,38 +415,42 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
 
     fn ib(input: &str) -> IResult<&str, NumericInstr> {
         fn ibinop_i32(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing Ib32");
             alt((
                 value(BinaryOp::I32Add, ws(tag("Iadd"))),
                 value(BinaryOp::I32Sub, ws(tag("Isub"))),
-                value(BinaryOp::I32DivS, tuple((ws(tag("S")), ws(tag("Idiv"))))),
-                value(BinaryOp::I32DivU, tuple((ws(tag("U")), ws(tag("Idiv"))))),
-                value(BinaryOp::I32RemS, tuple((ws(tag("S")), ws(tag("Irem"))))),
-                value(BinaryOp::I32RemU, tuple((ws(tag("U")), ws(tag("Irem"))))),
+                value(BinaryOp::I32Mul, ws(tag("Imul"))),
+                value(BinaryOp::I32DivS, sexp(tuple((ws(tag("Idiv")), ws(tag("S")))))),
+                value(BinaryOp::I32DivU, sexp(tuple((ws(tag("Idiv")), ws(tag("U")))))),
+                value(BinaryOp::I32RemS, sexp(tuple((ws(tag("Irem")), ws(tag("S")))))),
+                value(BinaryOp::I32RemU, sexp(tuple((ws(tag("Irem")), ws(tag("U")))))),
                 value(BinaryOp::I32And, ws(tag("Iand"))),
                 value(BinaryOp::I32Or, ws(tag("Ior"))),
                 value(BinaryOp::I32Xor, ws(tag("Ixor"))),
                 value(BinaryOp::I32Shl, ws(tag("Ishl"))),
-                value(BinaryOp::I32ShrS, tuple((ws(tag("S")), ws(tag("Ishr"))))),
-                value(BinaryOp::I32ShrU, tuple((ws(tag("U")), ws(tag("Ishr"))))),
+                value(BinaryOp::I32ShrS, sexp(tuple((ws(tag("Ishr")), ws(tag("S")))))),
+                value(BinaryOp::I32ShrU, sexp(tuple((ws(tag("Ishr")), ws(tag("U")))))),
                 value(BinaryOp::I32Rotl, ws(tag("Irotl"))),
                 value(BinaryOp::I32Rotr, ws(tag("Irotr"))),
             ))(input)
         }
 
         fn ibinop_i64(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing Ib64");
             alt((
                 value(BinaryOp::I64Add, ws(tag("Iadd"))),
                 value(BinaryOp::I64Sub, ws(tag("Isub"))),
-                value(BinaryOp::I64DivS, tuple((ws(tag("S")), ws(tag("Idiv"))))),
-                value(BinaryOp::I64DivU, tuple((ws(tag("U")), ws(tag("Idiv"))))),
-                value(BinaryOp::I64RemS, tuple((ws(tag("S")), ws(tag("Irem"))))),
-                value(BinaryOp::I64RemU, tuple((ws(tag("U")), ws(tag("Irem"))))),
+                value(BinaryOp::I64Mul, ws(tag("Imul"))),
+                value(BinaryOp::I64DivS, sexp(tuple((ws(tag("Idiv")), ws(tag("S")))))),
+                value(BinaryOp::I64DivU, sexp(tuple((ws(tag("Idiv")), ws(tag("U")))))),
+                value(BinaryOp::I64RemS, sexp(tuple((ws(tag("Irem")), ws(tag("S")))))),
+                value(BinaryOp::I64RemU, sexp(tuple((ws(tag("Irem")), ws(tag("U")))))),
                 value(BinaryOp::I64And, ws(tag("Iand"))),
                 value(BinaryOp::I64Or, ws(tag("Ior"))),
                 value(BinaryOp::I64Xor, ws(tag("Ixor"))),
                 value(BinaryOp::I64Shl, ws(tag("Ishl"))),
-                value(BinaryOp::I64ShrS, tuple((ws(tag("S")), ws(tag("Ishr"))))),
-                value(BinaryOp::I64ShrU, tuple((ws(tag("U")), ws(tag("Ishr"))))),
+                value(BinaryOp::I64ShrS, sexp(tuple((ws(tag("Ishr")), ws(tag("S")))))),
+                value(BinaryOp::I64ShrU, sexp(tuple((ws(tag("Ishr")), ws(tag("U")))))),
                 value(BinaryOp::I64Rotl, ws(tag("Irotl"))),
                 value(BinaryOp::I64Rotr, ws(tag("Irotr"))),
             ))(input)
@@ -461,6 +467,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
 
     fn fu(input: &str) -> IResult<&str, NumericInstr> {
         fn funop_f32(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing FUnOp32");
             alt((
                 value(UnaryOp::F32Abs, tag("Iabs")),
                 value(UnaryOp::F32Neg, tag("Ineq")),
@@ -473,6 +480,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn funop_f64(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing FUnOp64");
             alt((
                 value(UnaryOp::F64Abs, tag("Iabs")),
                 value(UnaryOp::F64Neg, tag("Ineq")),
@@ -495,6 +503,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
 
     fn fb(input: &str) -> IResult<&str, NumericInstr> {
         fn fbinop_f32(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing FBinOp32");
             alt((
                 value(BinaryOp::F32Add, ws(tag("Iaddf"))),
                 value(BinaryOp::F32Sub, ws(tag("Isubf"))),
@@ -507,6 +516,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn fbinop_f64(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing FBinOp64");
             alt((
                 value(BinaryOp::F64Add, ws(tag("Iaddf"))),
                 value(BinaryOp::F64Sub, ws(tag("Isubf"))),
@@ -529,10 +539,12 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
 
     fn it(input: &str) -> IResult<&str, NumericInstr> {
         fn itestop_i32(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing ITestOp32");
             value(UnaryOp::I32Eqz, tag("Ieqz"))(input)
         }
 
         fn itestop_i64(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing ITestOp64");
             value(UnaryOp::I64Eqz, tag("Ieqz"))(input)
         }
 
@@ -547,32 +559,34 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
 
     fn ir(input: &str) -> IResult<&str, NumericInstr> {
         fn irelop_i32(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing IRelOp32");
             alt((
                 value(BinaryOp::I32Eq, ws(tag("Ieq"))),
                 value(BinaryOp::I32Ne, ws(tag("Ine"))),
-                value(BinaryOp::I32LtS, pair(ws(tag("S")), ws(tag("Ilt")))),
-                value(BinaryOp::I32GtS, pair(ws(tag("S")), ws(tag("Igt")))),
-                value(BinaryOp::I32LeS, pair(ws(tag("S")), ws(tag("Ile")))),
-                value(BinaryOp::I32GeS, pair(ws(tag("S")), ws(tag("Ige")))),
-                value(BinaryOp::I32LtU, pair(ws(tag("U")), ws(tag("Ilt")))),
-                value(BinaryOp::I32GtU, pair(ws(tag("U")), ws(tag("Igt")))),
-                value(BinaryOp::I32LeU, pair(ws(tag("U")), ws(tag("Ile")))),
-                value(BinaryOp::I32GeU, pair(ws(tag("U")), ws(tag("Ige")))),
+                value(BinaryOp::I32LtS, sexp(pair(ws(tag("Ilt")), ws(tag("S"))))),
+                value(BinaryOp::I32GtS, sexp(pair(ws(tag("Igt")), ws(tag("S"))))),
+                value(BinaryOp::I32LeS, sexp(pair(ws(tag("Ile")), ws(tag("S"))))),
+                value(BinaryOp::I32GeS, sexp(pair(ws(tag("Ige")), ws(tag("S"))))),
+                value(BinaryOp::I32LtU, sexp(pair(ws(tag("Ilt")), ws(tag("U"))))),
+                value(BinaryOp::I32GtU, sexp(pair(ws(tag("Igt")), ws(tag("U"))))),
+                value(BinaryOp::I32LeU, sexp(pair(ws(tag("Ile")), ws(tag("U"))))),
+                value(BinaryOp::I32GeU, sexp(pair(ws(tag("Ige")), ws(tag("U"))))),
             ))(input)
         }
 
         fn irelop_i64(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing IRelOp64");
             alt((
                 value(BinaryOp::I64Eq, ws(tag("Ieq"))),
                 value(BinaryOp::I64Ne, ws(tag("Ine"))),
-                value(BinaryOp::I64LtS, pair(ws(tag("S")), ws(tag("Ilt")))),
-                value(BinaryOp::I64GtS, pair(ws(tag("S")), ws(tag("Igt")))),
-                value(BinaryOp::I64LeS, pair(ws(tag("S")), ws(tag("Ile")))),
-                value(BinaryOp::I64GeS, pair(ws(tag("S")), ws(tag("Ige")))),
-                value(BinaryOp::I64LtU, pair(ws(tag("U")), ws(tag("Ilt")))),
-                value(BinaryOp::I64GtU, pair(ws(tag("U")), ws(tag("Igt")))),
-                value(BinaryOp::I64LeU, pair(ws(tag("U")), ws(tag("Ile")))),
-                value(BinaryOp::I64GeU, pair(ws(tag("U")), ws(tag("Ige")))),
+                value(BinaryOp::I64LtS, sexp(pair(ws(tag("Ilt")), ws(tag("S"))))),
+                value(BinaryOp::I64GtS, sexp(pair(ws(tag("Igt")), ws(tag("S"))))),
+                value(BinaryOp::I64LeS, sexp(pair(ws(tag("Ile")), ws(tag("S"))))),
+                value(BinaryOp::I64GeS, sexp(pair(ws(tag("Ige")), ws(tag("S"))))),
+                value(BinaryOp::I64LtU, sexp(pair(ws(tag("Ilt")), ws(tag("U"))))),
+                value(BinaryOp::I64GtU, sexp(pair(ws(tag("Igt")), ws(tag("U"))))),
+                value(BinaryOp::I64LeU, sexp(pair(ws(tag("Ile")), ws(tag("U"))))),
+                value(BinaryOp::I64GeU, sexp(pair(ws(tag("Ige")), ws(tag("U"))))),
             ))(input)
         }
 
@@ -587,6 +601,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
 
     fn fr(input: &str) -> IResult<&str, NumericInstr> {
         fn frelop_f32(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing FRelOp32");
             alt((
                 value(BinaryOp::F32Eq, ws(tag("Ieqf"))),
                 value(BinaryOp::F32Ne, ws(tag("Inef"))),
@@ -598,6 +613,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn frelop_f64(input: &str) -> IResult<&str, BinaryOp> {
+            trace!("Parsing FRelOp64");
             alt((
                 value(BinaryOp::F64Eq, ws(tag("Ieqf"))),
                 value(BinaryOp::F64Ne, ws(tag("Inef"))),
@@ -618,7 +634,25 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
     }
 
     fn cvti(input: &str) -> IResult<&str, NumericInstr> {
+        trace!("Parsing CvtI");
+
+        // fn i32_convert_i32(input: &str) -> IResult<&str, ()> {
+        //    trace!("Parsing CvtI IConvery");
+        //    // CvtI I32(IConvert I32 U)
+        //    let (input, _) = tuple((
+        //        ws(tag("I32")), 
+        //        sexp(tuple((
+        //            ws(),
+        //            ws(tag("I32")), 
+        //            ws(sign)))
+        //        )
+        //    ))(input)?;
+        //    
+        //    Ok((input, ()))
+        //}
+
         fn i32_wrap_i64(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing I32Wrap64");
             let (input, ty) = val(input)?;
             match ty {
                 Val::I64 => Ok((input, UnaryOp::I32WrapI64)),
@@ -627,6 +661,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn i64_extend_i32(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing I64Extend32");
             let (input, ty) = val(input)?;
             let (input, sign) = sign(input)?;
             match ty {
@@ -639,6 +674,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn reinterpret_i2f(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing ReInterpretI2F");
             let (input, ty) = ws(val)(input)?;
             Ok((
                 input,
@@ -651,6 +687,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn i32_trunc_f(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing I32TruncF");
             let (input, ty) = ws(val)(input)?;
             let (input, sign) = ws(sign)(input)?;
             Ok((
@@ -670,6 +707,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn i64_trunc_f(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing I64TruncF");
             let (input, ty) = ws(val)(input)?;
             let (input, sign) = ws(sign)(input)?;
             Ok((
@@ -708,7 +746,10 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
     }
 
     fn cvtf(input: &str) -> IResult<&str, NumericInstr> {
+        trace!("Parsing Cvtf");
+
         fn f32_convert_i(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing F32ConvertI");
             let (input, ty) = ws(val)(input)?;
             let (input, sign) = ws(sign)(input)?;
 
@@ -729,6 +770,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn f64_convert_i(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing F64ConvertI");
             let (input, ty) = ws(val)(input)?;
             let (input, sign) = ws(sign)(input)?;
 
@@ -749,6 +791,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn reinterpret_f2i(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing ReInterpretF2I");
             let (input, ty) = ws(val)(input)?;
             Ok((
                 input,
@@ -761,6 +804,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn f32_demote_f64(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing F32DemoteF64");
             let (input, ty) = ws(val)(input)?;
             match ty {
                 Val::F64 => Ok((input, UnaryOp::F32DemoteF64)),
@@ -769,6 +813,7 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         }
 
         fn f64_promote_f32(input: &str) -> IResult<&str, UnaryOp> {
+            trace!("Parsing F64PromoteF32");
             let (input, ty) = ws(val)(input)?;
             match ty {
                 Val::F32 => Ok((input, UnaryOp::F64PromoteF32)),
@@ -779,9 +824,9 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         let (input, ty) = val(input)?;
         let (input, cvtf) = match ty {
             Val::F32 => alt((
-                preceded(ws(tag("IConvert")), f32_convert_i),
-                preceded(ws(tag("IReinterpret")), reinterpret_f2i),
-                preceded(ws(tag("IDemote")), f32_demote_f64),
+                sexp(preceded(ws(tag("IConvert")), f32_convert_i)),
+                sexp(preceded(ws(tag("IReinterpret")), reinterpret_f2i)),
+                sexp(preceded(ws(tag("IDemote")), f32_demote_f64)),
             ))(input)?,
 
             Val::F64 => alt((
@@ -802,25 +847,29 @@ fn numeric(input: &str) -> IResult<&str, NumericInstr> {
         preceded(tag("It"), it),
         preceded(tag("Ir"), ir),
         preceded(tag("Fr"), fr),
-        preceded(tag("Cvt"), cvti),
+        preceded(tag("CvtI"), cvti),
         preceded(tag("CvtF"), cvtf),
     )))(input)
 }
 
 fn export(input: &str) -> IResult<&str, String> {
-    trace!("export");
-    let (input, export_str) = alphanumeric1(input)?;
+    trace!("Parsing Export");
+    let (input, export_str) = ws(identifier)(input)?;
     Ok((input, export_str.to_owned()))
 }
 
-fn identifier(input: &str) -> IResult<&str, String> {
-    trace!("id");
-    let (input, identifier_name) =  nom::bytes::complete::take_till(|c| c == ' ' || c == ')')(input)?;
-    Ok((input, identifier_name.to_owned()))
-} 
+pub fn identifier(input: &str) -> IResult<&str, &str> {
+    trace!("Parsing Identifier");
+    nom::Parser::parse(&mut nom::combinator::recognize(
+      pair(
+        alt((nom::character::complete::alpha1, tag("_"))),
+        nom::multi::many0_count(alt((alphanumeric1, tag("_"))))
+      )
+    ), input)
+}
 
 fn import(input: &str) -> IResult<&str, (String, String)> {
-    trace!("import");
+    trace!("Parsing Import");
 
     let (input, _) = ws(tag("("))(input)?;
     let (input, _) = ws(tag("Import"))(input)?;
@@ -832,7 +881,7 @@ fn import(input: &str) -> IResult<&str, (String, String)> {
 }
 
 fn instr(input: &str) -> IResult<&str, Instr> {
-    trace!("instrs , {input}");
+    trace!("Parsing Instruction");
     fn num(input: &str) -> IResult<&str, Instr> {
         // Num of NumType.t * (int64, int32) Either.t
         // FIXME: "First" and "Second" mean either u32 or u64 - maybe reprent accordingly
@@ -867,7 +916,10 @@ fn instr(input: &str) -> IResult<&str, Instr> {
         Ok((input, Instr::Nop))
     }
     fn drop(input: &str) -> IResult<&str, Instr> {
-        Ok((input, Instr::Drop))
+        trace!("Parsing Drop"); 
+        // (IDrop (Ptr (LocV 0)))
+        let (input, pt) = ws(pretype)(input)?;
+        Ok((input, Instr::Drop(pt)))
     }
     fn select(input: &str) -> IResult<&str, Instr> {
         Ok((input, Instr::Select))
@@ -1011,10 +1063,10 @@ fn instr(input: &str) -> IResult<&str, Instr> {
     }
 
     fn memunpack(input: &str) -> IResult<&str, Instr> {
-        // IMemUnpack of Type.at * LocalEffect.t * t list
+        // IMemUnpack of Type.at * LocalEffect.t * t list * Type
         map(
-            tuple((ws(blocktype), ws(local_effect), ws(vec(instr)))),
-            |(bt, le, instr)| Instr::MemUnpack(bt, le, instr),
+            tuple((ws(blocktype), ws(local_effect), ws(vec(instr)), ws(_type))),
+            |(bt, le, instr, ty)| Instr::MemUnpack(bt, le, instr, ty),
         )(input)
     }
 
@@ -1039,16 +1091,16 @@ fn instr(input: &str) -> IResult<&str, Instr> {
     }
 
     fn istructset(input: &str) -> IResult<&str, Instr> {
-        // IStructSet of int * Type.t list
-        map(tuple((ws(u32), ws(vec(_type)))), |(digit, v)| {
-            Instr::Struct(StructOp::Set(digit), v)
+        // IStructSet of int * Type.t list * PreType
+        map(tuple((ws(u32), ws(vec(_type)), ws(pretype))), |(digit, v, pt)| {
+            Instr::Struct(StructOp::Set(digit, pt), v)
         })(input)
     }
 
     fn istructswap(input: &str) -> IResult<&str, Instr> {
         // IStructSwap of int * Type.t list
-        map(tuple((ws(u32), ws(vec(_type)))), |(digit, v)| {
-            Instr::Struct(StructOp::Swap(digit), v)
+        map(tuple((ws(u32), ws(vec(_type)), ws(pretype))), |(digit, v, pt)| {
+            Instr::Struct(StructOp::Swap(digit, pt), v)
         })(input)
     }
 
@@ -1129,10 +1181,30 @@ fn instr(input: &str) -> IResult<&str, Instr> {
         map(ws(qual), Instr::Qualify)(input)
     }
 
+
+    fn i32_convert_i32(input: &str) -> IResult<&str, Instr> {
+        trace!("Parsing CvtI IConvert");
+        //(INe(CvtI I32(IConvert I32 U)))
+        let (input, _) = sexp(tuple((
+            ws(tag("INe")), 
+            sexp(tuple((
+                ws(tag("CvtI")), 
+                ws(val), 
+                sexp(tuple((
+                    ws(tag("IConvert")),
+                    ws(tag("I32")), 
+                    ws(sign)    
+                )))
+            )))
+        )))(input)?;
+                
+        Ok((input, Instr::Nop))
+    }
+
     alt((
+        i32_convert_i32, 
         alt((
             // Do not take any arguments so are not in sepx form
-            preceded(ws(tag("IDrop")), drop),
             preceded(ws(tag("IUnreachable")), unreachable),
             preceded(ws(tag("INop")), nop),
             preceded(ws(tag("ISelect")), select),
@@ -1147,6 +1219,7 @@ fn instr(input: &str) -> IResult<&str, Instr> {
         )),
         sexp(alt((
             alt((
+                preceded(ws(tag("IDrop")), drop),
                 preceded(ws(tag("IVal")), value),
                 preceded(ws(tag("INe")), ne),
             )),
@@ -1202,7 +1275,7 @@ fn instr(input: &str) -> IResult<&str, Instr> {
 }
 
 fn function(input: &str) -> IResult<&str, Function> {
-    trace!("function");
+    trace!("Parsing Function");
     fn function_present(input: &str) -> IResult<&str, Function> {
         preceded(
             ws(tag("Fun")),
@@ -1240,11 +1313,11 @@ fn function(input: &str) -> IResult<&str, Function> {
         )(input)
     }
 
-    sexp(alt((function_present, function_import)))(input)
+    sexp(alt((function_import, function_present)))(input)
 }
 
 fn global(input: &str) -> IResult<&str, Global> {
-    trace!("global");
+    trace!("Parsing Global");
     fn global_mut(input: &str) -> IResult<&str, Global> {
         preceded(
             ws(tag("GlobMut")),
@@ -1268,7 +1341,7 @@ fn global(input: &str) -> IResult<&str, Global> {
                 tuple((ws(vec(export)), ws(pretype), ws(vec(instr)))),
                 |(export, pt, instrs)| Global {
                     _type: GlobalType {
-                        mutable: false,
+                        mutable: true,
                         _type: pt,
                     },
                     init: ImportOrPresent::Present(instrs),
@@ -1285,7 +1358,7 @@ fn global(input: &str) -> IResult<&str, Global> {
                 tuple((ws(vec(export)), ws(pretype), ws(import))),
                 |(export, pt, (import_s1, import_s2))| Global {
                     _type: GlobalType {
-                        mutable: false,
+                        mutable: true,
                         _type: pt,
                     },
                     init: ImportOrPresent::Import(import_s1, import_s2),
@@ -1299,7 +1372,7 @@ fn global(input: &str) -> IResult<&str, Global> {
 }
 
 fn module(input: &str) -> IResult<&str, Module> {
-    trace!("module");
+    trace!("Parsing Module");
     sexp(map(
         tuple((ws(vec(function)), ws(vec(global)), ws(table))),
         |(functions, globals, table)| Module {
@@ -1311,16 +1384,17 @@ fn module(input: &str) -> IResult<&str, Module> {
 }
 
 pub(crate) fn parse_module(input: &str) -> Result<Module, String> {
-    match module(input) {
+    match ws(module)(input) {
         Ok((_, module)) => Ok(module),
-        Result::Err(err) => Err(err.to_string()),
+        Result::Err(_err) => Err("Parsing failed".to_owned()),
     }
 }
 
 pub(crate) fn parse_modules(input: &str) -> Result<Vec<Module>, String> {
-    match vec(module)(input) {
+    trace!("Parsing Modules");
+    match ws(vec(ws(module)))(input) {
         Ok((_, module)) => Ok(module),
-        Result::Err(err) => Err(err.to_string()),
+        Result::Err(_err) => Err("Parsing failed".to_owned()),
     }
 }
 

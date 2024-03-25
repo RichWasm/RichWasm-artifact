@@ -1,40 +1,37 @@
-(((Fun (main) (() (() (((Num (Int U I64)) (QualC Unr))))) ((SizeC 64))
-    (
-      (IVal (Num (Int U I64) (First 3))) 
-      (IVal (Num (Int U I64) (First 2)))
-    (IGroup 2 (QualC Unr))
-    (
-      IVariantMalloc 2
-      (
-        (Unit (QualC Unr)) 
-        ((Num (Int U I64)) (QualC Unr))
+  (((Fun (main) (() (() (((Num (Int U I64)) (QualC Unr))))) ((SizeC 64))
+     ((IVal (Num (Int U I64) (First 3))) (IVal (Num (Int U I64) (First 2)))
+      (IGroup 2 (QualC Unr))
+      (IVariantMalloc 2
+       ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
         ((Prod
-          (((Num (Int U I64)) (QualC Unr)) 
-          ((Num (Int U I64)) (QualC Unr))))(QualC Unr)
-        )
-      )
-      (QualC Unr)
-    )
-    (IMemUnpack (() ()) ((0 ((Num (Int U I64)) (QualC Unr))))
-      (
-        (IVariantCase (QualC Unr)
-        (
-          (Unit (QualC Unr)) 
-          ((Num (Int U I64)) (QualC Unr))
+          (((Num (Int U I64)) (QualC Unr)) ((Num (Int U I64)) (QualC Unr))))
+         (QualC Unr)))
+       (QualC Unr))
+      (IMemUnpack (() ()) ((0 ((Num (Int U I64)) (QualC Unr))))
+       ((IVariantCase (QualC Unr)
+         ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
           ((Prod
             (((Num (Int U I64)) (QualC Unr)) ((Num (Int U I64)) (QualC Unr))))
-            (QualC Unr))
-        )
-        (() (((Num (Int U I64)) (QualC Unr)))) 
-        ()
-        (
-          (IDrop (IVal (Num (Int U I64) (First 2)))) 
-          ()
-          (IUngroup (INe (Ib I64 Iadd)))
-        )
-       )
-       (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
-      )
-    )
-    (IGet_local 0 (QualC Unr) (Num (Int U I64))))))
-() ())
+           (QualC Unr)))
+         (() (((Num (Int U I64)) (QualC Unr)))) ()
+         (((IDrop Unit) (IVal (Num (Int U I64) (First 2)))) ()
+          (IUngroup (INe (Ib I64 Iadd)))))
+        (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
+        (IDrop
+         (Ref W (LocV 0)
+          (Variant
+           ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
+            ((Prod
+              (((Num (Int U I64)) (QualC Unr))
+               ((Num (Int U I64)) (QualC Unr))))
+             (QualC Unr)))))))
+       ((Ref W (LocV 0)
+         (Variant
+          ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
+           ((Prod
+             (((Num (Int U I64)) (QualC Unr))
+              ((Num (Int U I64)) (QualC Unr))))
+            (QualC Unr)))))
+        (QualC Unr)))
+      (IGet_local 0 (QualC Unr) (Num (Int U I64))))))
+   () ())

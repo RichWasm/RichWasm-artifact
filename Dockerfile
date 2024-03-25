@@ -38,7 +38,8 @@ RUN opam switch create 5.0.0 \
    && eval $(opam env --switch=5.0.0) \
    && opam option depext=false \
    && opam install . --yes \ 
-   && opam install core_unix --yes 
+   && opam install core_unix --yes \
+   && dune build ml l3 rich_wasm \
 
 # Build compilers and run tests for ML, L3 and the RichWasm annotator 
 #   && dune build ml l3 rich_wasm \

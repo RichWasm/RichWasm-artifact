@@ -118,6 +118,7 @@ fn import_allocator_into_module() {
     //     )
     // )
     // "#
+    
     let import_alloc = wasabi_wasm::Function::new_imported(
         wasabi_wasm::FunctionType::new(&[wasabi_wasm::ValType::I32], &[wasabi_wasm::ValType::I32]),
         String::from("allocator"),
@@ -194,7 +195,7 @@ fn run_module(
     // The allocator needs to import Memory.
     let memory_ty = MemoryType::new(2, None);
     let memory = Memory::new(&mut store, memory_ty)?;
-
+    
     // Instantiate the allocator and get the alloc and free functions.
     let allocator_instance = Instance::new(&mut store, &allocator, &[memory.into()])?;
     let walloc = allocator_instance
@@ -204,8 +205,25 @@ fn run_module(
         .get_func(&mut store, "wfree")
         .expect("Could not find free function in allocator.");
 
-    let rwasma = &rwasm::Module::from_file(path, true).unwrap()[0];
-    let wasm_module = wasmtime::Module::from_binary(&engine, &rwasma.translate(0).to_bytes()?)?;
+    let rwasma = &rwasm::Module::from_file(&path, true).unwrap()[0];
+    let compiled_wasm_module = &rwasma.translate("".to_owned());     
+    
+    let wasm_module = match wasmtime::Module::from_binary(&engine, &compiled_wasm_module.to_bytes()?) {
+        Ok(module) => module,
+        Err(e) => {
+            let test_filestem = path
+                .as_ref()
+                .file_stem()
+                .unwrap_or_else(||panic!("Error while extracting file name to save compiled Wasm module."))
+                .to_str();
+            let wasm_file_for_debug = match test_filestem {
+                Some(filestem) => std::path::Path::new(filestem).with_extension("wasm"),
+                None => std::path::Path::new("test.wasm").to_path_buf(),
+            };
+            compiled_wasm_module.to_file(wasm_file_for_debug)?;
+            return Err(e)
+        },
+    };
 
     let instance = Instance::new(
         &mut store,
@@ -219,6 +237,7 @@ fn run_module(
         .expect("did not find main function");
 
     let res = main.call(&mut store, &[], wasm_results);
+
     match res {
         Ok(_) => Ok(()),
         Err(e) => panic!("{e:?}"),
@@ -267,6 +286,7 @@ fn test_groups() {
         let path = path.unwrap().path();
         let extension = path.extension().and_then(std::ffi::OsStr::to_str);
         if extension.is_some_and(|e| e == "rwasma") {
+            trace!("Running {}", path.display());
             let mut wasm_results = vec![
                 wasmtime::Val::I32(-1),
                 wasmtime::Val::I32(-1),
@@ -289,7 +309,7 @@ fn test_structs() {
         let path = path.unwrap().path();
         let extension = path.extension().and_then(std::ffi::OsStr::to_str);
         if extension.is_some_and(|e| e == "rwasma") {
-            println!("{}", path.display());
+            trace!("Running {}", path.display());
 
             let mut wasm_results = vec![
                 wasmtime::Val::I32(-1),
@@ -309,10 +329,8 @@ fn test_arrays() {
         let path = path.unwrap().path();
         let extension = path.extension().and_then(std::ffi::OsStr::to_str);
         if extension.is_some_and(|e| e == "rwasma") {
-            println!("{}", path.display());
-
+            trace!("Running {}", path.display());
             let mut wasm_results = vec![wasmtime::Val::I32(-1)];
-
             test_file(path, &mut wasm_results, &[12]).unwrap();
         }
     }
@@ -325,13 +343,14 @@ fn test_function_calls() {
         let path = path.unwrap().path();
         let extension = path.extension().and_then(std::ffi::OsStr::to_str);
         if extension.is_some_and(|e| e == "rwasma") {
+            trace!("Running {}", path.display());
             let mut wasm_results = vec![wasmtime::Val::I32(-1)];
-
             test_file(path, &mut wasm_results, &[0]).unwrap();
         }
     }
 }
 
+<<<<<<< Updated upstream
  
  #[test]
  fn test_variant_0() {
@@ -379,3 +398,36 @@ fn test_function_calls() {
      .unwrap();
  }
  
+=======
+#[test]
+fn test_variants() {
+    let tests_dir_path = "./tests/translation_tests/variants";
+    for path in fs::read_dir(tests_dir_path).unwrap() {
+        let path = path.unwrap().path();
+        let extension = path.extension().and_then(std::ffi::OsStr::to_str);
+        if extension.is_some_and(|e| e == "rwasma") {
+            trace!("Running {}", path.display());
+            let mut wasm_results = vec![wasmtime::Val::I64(-1)];
+
+            test_file(path, &mut wasm_results, &[5]).unwrap();
+        }
+    }
+}
+
+#[test]
+fn test_exists() {
+    let tests_dir_path = "./tests/translation_tests/exists";
+    for path in fs::read_dir(tests_dir_path).unwrap() {
+        let path = path.unwrap().path();
+        let extension = path.extension().and_then(std::ffi::OsStr::to_str);
+        if extension.is_some_and(|e| e == "rwasma") {
+            trace!("Running {}", path.display());
+            let mut wasm_results = vec![wasmtime::Val::I64(-1)];
+
+            test_file(path, &mut wasm_results, &[5]).unwrap();
+        }
+    }
+}
+
+
+>>>>>>> Stashed changes

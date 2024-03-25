@@ -6,6 +6,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
 };
+use itertools::Itertools;
 use translate_insts::{FunctionContext, ModuleContext, TempLocals};
 use wasabi_wasm as wasm;
 
@@ -235,8 +236,11 @@ impl Type {
     }
 
     pub(crate) fn instantiate_ty(&self, ty_var_map: &HashMap<u32, PreType>) -> Type {
+
         match self.get_pt() {
             PreType::Var(ty_var) => {
+                
+                trace!("TY VAR MAP: {ty_var_map:?}");
                 let y = ty_var_map
                     .get(&ty_var.0)
                     .unwrap_or_else(|| panic!("Typevar {ty_var:?} has not been instantiated."));
@@ -256,15 +260,33 @@ impl Type {
             }
 
             PreType::CodeRef(ty) => {
+                let mut ty_var_map_for_coderef = HashMap::new(); 
+                let mut type_var_count = 0; 
+                for var_decl in &ty.vardecl {
+                    match var_decl {
+                        VarDecl::Loc | VarDecl::Qual(_, _) | VarDecl::Size(_, _) => (),
+                        VarDecl::Type(_qual, _size, _hc) => {
+                            // This is a forall type so it is uninstantiated, and should remain uninstantiated. 
+                            // TODO: Right now I instantiate this with a PreType::Unit, since I don't want the thing to complain later, but this might be the wrong notion 
+                            ty_var_map_for_coderef.insert(type_var_count, PreType::Unit);
+                            type_var_count+=1;
+                        },
+                    }
+                }
+
+                for (key, val) in ty_var_map {
+                    ty_var_map_for_coderef.insert(key+type_var_count, val.clone());
+                }                
+
                 let i_ft_p = ty
                     .params
                     .iter()
-                    .map(|ty| ty.instantiate_ty(ty_var_map))
+                    .map(|ty| ty.instantiate_ty(&ty_var_map_for_coderef))
                     .collect::<Vec<_>>();
                 let i_ft_r = ty
                     .results
                     .iter()
-                    .map(|ty| ty.instantiate_ty(ty_var_map))
+                    .map(|ty| ty.instantiate_ty(&ty_var_map_for_coderef))
                     .collect::<Vec<_>>();
 
                 Type(
@@ -278,6 +300,7 @@ impl Type {
             }
 
             PreType::Ref(cap, loc, ht) => Type(
+
                 Box::new(PreType::Ref(
                     cap.clone(),
                     loc.clone(),
@@ -307,9 +330,23 @@ impl Type {
 
             // Rec is a Recursive Type, compiled as inner types
             // We have an invariant that its not infinitely deep withut some level of indirection
-            PreType::Rec(_, inner_ty) | PreType::ExLoc(inner_ty) => {
-                inner_ty.instantiate_ty(ty_var_map)
-            }
+            PreType::Rec(_, inner_ty) => {
+
+                // For the purposes of obtaining the instaniaited stack shape, 
+                // we do not need to know what pretype the type variable introduced by 
+                // this Rec bind to.
+
+                let mut ty_var_map_for_rec = HashMap::new(); 
+                ty_var_map_for_rec.insert(0, PreType::Unit);
+                for (key, val) in ty_var_map {
+                    ty_var_map_for_rec.insert(key+1, val.clone());
+                }                
+
+                inner_ty.instantiate_ty(&ty_var_map_for_rec)
+
+            }, 
+            
+            PreType::ExLoc(inner_ty) => inner_ty.instantiate_ty(ty_var_map),
 
             _ => self.clone(),
         }
@@ -430,7 +467,7 @@ impl Type {
         mod_ctx: &ModuleContext,
         instrs: &mut Vec<wasm::Instr>,
         temp_locals: &mut TempLocals,
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, String> {
         let mut locals = vec![];
 
         match (callee.get_pt(), caller.get_pt()) {
@@ -448,7 +485,9 @@ impl Type {
 
             // Callee expects a variable and caller has a concrete type.
             // Box on the heap and pass pointer
-            (PreType::Var(_), _) => locals.push(Self::box_on_heap(caller, caller_fun_ctx, mod_ctx, instrs, temp_locals)),
+            (PreType::Var(_), _) => {
+                locals.push(Self::box_on_heap(caller, caller_fun_ctx, mod_ctx, instrs, temp_locals));
+            },
 
             // Callee expects a concrete type and caller has a variable.
             // Unbox from the heap and pass values read out.
@@ -478,7 +517,7 @@ impl Type {
                     mod_ctx,
                     instrs,
                     temp_locals,
-                ));
+                )?);
             }
 
             (PreType::Product(callee_vec_ty), PreType::Product(caller_vec_ty)) => {
@@ -496,7 +535,7 @@ impl Type {
                         mod_ctx,
                         instrs,
                         temp_locals,
-                    ));
+                    )?);
                 }
             }
             
@@ -516,11 +555,11 @@ impl Type {
                 PreType::Unit | PreType::Own(_) | PreType::Cap(_, _, _),
             ) => (),
 
-            (_, _) => panic!("Caller and callees should have the same concrete type, Caller:{caller:?}, Callee:{callee:?} found when trying to transform the stack to what the caller expects"),
+            (_, _) => return Err("Caller and callees should have the same concrete type. Different concrete type found.".to_string()),
             
         }
 
-        locals
+        Ok(locals)
     }
 
     // For this function, the view is on the caller types.
@@ -532,7 +571,7 @@ impl Type {
         mod_ctx: &ModuleContext,
         instrs: &mut Vec<wasm::Instr>,
         temp_locals: &mut TempLocals,
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, String> {
         let mut locals = vec![];
 
         match (caller.get_pt(), callee.get_pt()) {
@@ -581,7 +620,7 @@ impl Type {
                     mod_ctx,
                     instrs,
                     temp_locals,
-                ));
+                )?);
             }
 
             (PreType::Product(caller_vec_ty), PreType::Product(callee_vec_ty)) => {
@@ -596,7 +635,7 @@ impl Type {
                         mod_ctx,
                         instrs,
                         temp_locals,
-                    ));
+                    )?);
                 }
             }
 
@@ -614,10 +653,10 @@ impl Type {
                 PreType::Unit | PreType::Own(_) | PreType::Cap(_, _, _),
             ) => (),
 
-            (_, _) => panic!("Caller and callees should have the same concrete type, Caller:{caller:?}, Callee:{callee:?} found when trying to transform the stack to what the caller expects"),
+            (_, _) => return Err("Caller and callees should have the same concrete type. Different concrete type found.".to_string()),
         }
 
-        locals
+        Ok(locals)
     }
 }
 
@@ -630,7 +669,7 @@ impl FunctionType {
         mod_ctx: &ModuleContext,
         instrs: &mut Vec<wasm::Instr>,
         temp_locals: &mut TempLocals,
-    ) {
+    ) -> Result<(), String> {
         let mut param_local_vars_in_rev = vec![];
         trace!("INSTRS at start of callee_stack: ");
         instrs.iter().for_each(|i| trace!("  {i}"));
@@ -647,7 +686,7 @@ impl FunctionType {
                 mod_ctx,
                 instrs,
                 temp_locals,
-            ));
+            )?);
         }
 
         // Go through all local variables saved in reverse order and push on the stack.
@@ -656,6 +695,8 @@ impl FunctionType {
             instrs.push(temp_locals.get_local_var(*local));
             temp_locals.free_local_var(*local);
         }
+
+        Ok(())
     }
 
     pub(crate) fn to_caller_stack(
@@ -666,7 +707,7 @@ impl FunctionType {
         mod_ctx: &ModuleContext,
         instrs: &mut Vec<wasm::Instr>,
         temp_locals: &mut TempLocals,
-    ) {
+    ) -> Result<(), String> {
         // Go through rwasm function type results in reverse (we pop from stack so reverse)
         //   For type variables,
         //     Look up the pretype of the type variable and go in reverse
@@ -689,13 +730,15 @@ impl FunctionType {
                 mod_ctx,
                 instrs,
                 temp_locals,
-            ));
+            )?);
         }
 
         for local in results_local_vars_in_rev.iter().rev() {
             instrs.push(temp_locals.get_local_var(*local));
             temp_locals.free_local_var(*local);
         }
+
+        Ok(())
     }
 }
 
@@ -711,11 +754,9 @@ impl PreType {
 
             PreType::Var(_ty_var) => {
                 // let size = fun_ctx.typevar_size[&ty_var.0].clone();
-                // println!("size:{size:?}!");
-                // let x = size.get_wasm_types(&fun_ctx.size_closure);
-                // println!("var done!");
-                // x
-                // For now box all type variables on the heap
+                // size.get_wasm_types(&fun_ctx.size_closure)
+
+                // For now, all type variables are boxed on the heap with 32 bit pointers 
                 vec![wasm::ValType::I32]
             }
 
@@ -755,8 +796,11 @@ impl PreType {
                 ConstType::F64 => Size::Concrete(64),
             },
 
-            PreType::Var(ty_var) => type_variable_sizes[&ty_var.0].clone(),
-
+            PreType::Var(_ty_var) => {
+                // type_variable_sizes[&ty_var.0].clone(),
+                // for now, box all type variables in heap with 32 bits pointer 
+                Size::Concrete(32)
+            },
             PreType::Product(ty_vec) => ty_vec.iter().fold(Size::Concrete(0), |sum, ty| {
                 Size::Plus(Box::new(sum), Box::new(ty.to_size(type_variable_sizes)))
             }),
@@ -794,10 +838,15 @@ impl BlockType {
 }
 
 impl FunctionType {
-    pub(crate) fn get_wasm_types(&self) -> (wasm::FunctionType, FunctionContext) {
+    pub(crate) fn get_wasm_types(&self) -> (wasm::FunctionType, FunctionContext) {    
+        trace!(
+            "Translating RWasm FunctionType: \n  params:  {:?},\n  results: {:?}, \n  vardecl: {:?}", 
+            self.params, self.results, self.vardecl
+        ); 
+
         let mut size_bounds: HashMap<u32, (Vec<Size>, Vec<Size>)> = HashMap::new();
         let mut qual_bounds: HashMap<u32, (Vec<Qual>, Vec<Qual>)> = HashMap::new();
-        let mut typevar_size: HashMap<u32, Size> = HashMap::new();
+        let mut typevar_sizes: HashMap<u32, Size> = HashMap::new();
 
         // Populate the context with the values for various abstract variables.
         // These are size variables, type variables and qual variables.
@@ -813,7 +862,7 @@ impl FunctionType {
 
                 // Used in the TYPE translation of sizes
                 VarDecl::Type(_qual, size, _heap) => {
-                    typevar_size.insert(type_vars_count, size.clone());
+                    typevar_sizes.insert(type_vars_count, size.clone());
                     type_vars_count += 1;
                 }
 
@@ -827,7 +876,12 @@ impl FunctionType {
                 VarDecl::Loc => (),
             }
         }
-        let context = FunctionContext::new(typevar_size.clone(), &size_bounds, &qual_bounds);
+
+        trace!("Size Variable Bounds : {:?}", size_bounds);
+        trace!("Qual Variable Bounds : {:?}", qual_bounds);
+        trace!("TypeVar Sizes : {:?}", typevar_sizes);
+        
+        let context = FunctionContext::new(typevar_sizes.clone(), &size_bounds, &qual_bounds);
         let params: Vec<wasm::ValType> = self
             .params
             .iter()
@@ -838,6 +892,9 @@ impl FunctionType {
             .iter()
             .flat_map(|ty| ty.to_wasm_types(&context))
             .collect();
+        
+        trace!("Wasm Function Type produced:\n  params:{:?},\n  results:{:?}", params, results);
+        
         let ft = wasm::FunctionType::new(&params, &results);
         (ft, context)
     }
@@ -853,7 +910,7 @@ impl Size {
     }
 
     pub(crate) fn to_u32(&self, size_variable_bounds: &HashMap<u32, u32>) -> u32 {
-        trace!("getting u32 of size");
+
         match self {
             Size::Concrete(ty_size) => *ty_size,
 
@@ -888,19 +945,15 @@ impl Function {
     pub(crate) fn translate(&self, mod_ctx: &ModuleContext) -> wasm::Function {
         let (type_, mut fun_ctx) = self._type.get_wasm_types();
 
-        trace!(
-            "wasm function_type: {:?}->{:?}",
-            type_.inputs(),
-            type_.results()
-        );
-
+        // Add parameters to locals 
         let mut locals_size: Vec<Size> = self
             ._type
             .params
             .iter()
             .map(|ty| ty.to_size(&fun_ctx.typevar_size))
             .collect();
-        locals_size.append(&mut self.locals.clone());
+        trace!("Param local sizes {locals_size:?}"); 
+        locals_size.append(&mut self.locals.clone());        
 
         let mut all_wasm_locals = Vec::new();
         let mut all_local_types: HashMap<u32, Vec<wasm::ValType>> = HashMap::new();
@@ -908,8 +961,9 @@ impl Function {
         let mut wasm_locals_count = 0;
 
         for (rwasm_local_idx, local_size) in locals_size.iter().enumerate() {
-            let wasm_locals = Local::get_wasm_locals(local_size.to_u32(&fun_ctx.size_closure));
 
+            let wasm_locals = Local::get_wasm_locals(local_size.to_u32(&fun_ctx.size_closure));
+            
             let local_idx = rwasm_local_idx as u32;
             let wasm_locals_idx = (wasm_locals_count
                 ..(wasm_locals_count + wasm_locals.len() as u32))
@@ -937,6 +991,7 @@ impl Function {
 
         fun_ctx.wasm_local_types = all_local_types;
         fun_ctx.local_map = local_map.clone();
+        trace!("LOCAL MAP: {:?}", local_map); 
 
         let mut temp_locals = TempLocals::new(all_wasm_locals.len() as u32);
 
@@ -954,25 +1009,37 @@ impl Function {
 
         all_wasm_locals.append(&mut temp_locals.get_wasm_locals());
 
-        for (idx, wasm_local) in all_wasm_locals.iter().enumerate() {
-            trace!("  LocalIdx:{} Type:{}", idx, wasm_local.type_);
+        trace!("WASM FUNCTION");
+        trace!("  (local ");
+        for (_idx, wasm_local) in all_wasm_locals.iter().enumerate() {
+            trace!("{} ", wasm_local.type_);
         }
+        trace!(")");
 
         for instr in body.iter() {
             trace!("  {instr}")
         }
 
+        let num_params = type_.inputs().len(); 
+        let func_locals = all_wasm_locals.get(num_params..)
+            .expect("wasm locals should atleast have parameters in");
         let code = wasm::Code {
-            locals: all_wasm_locals,
+            locals: func_locals.to_vec(),
             body,
         };
 
-        wasm::Function::new(type_, code, self.export.clone())
+        match &self.init {
+            ImportOrPresent::Import(import_module, import_name) => 
+                wasm::Function::new_imported(type_, import_module.clone(), import_name.clone(), self.export.clone()),
+            ImportOrPresent::Present(_) => wasm::Function::new(type_, code, self.export.clone()),
+        } 
+
     }
 }
 
 impl Local {
     pub(crate) fn get_wasm_locals(local_size: u32) -> Vec<wasm::Local> {
+        
         // We erase Unit types.
         // So the size of locals with type Unit will be 0.
         // We do not create a wasm local for this rwasm local since it will (and should) never be set.
@@ -1008,17 +1075,21 @@ impl rwasm::Global {
         let init: wasm::ImportOrPresent<Vec<wasm::Instr>> = match self.init.clone() {
             ImportOrPresent::Import(s1, s2) => wasm::ImportOrPresent::Import(s1, s2),
             ImportOrPresent::Present(instrs) => wasm::ImportOrPresent::<Vec<wasm::Instr>>::Present(
-                instrs
-                    .iter()
-                    .flat_map(|instr| {
-                        translate_insts::translate_instr(
-                            instr,
-                            fun_ctx,
-                            mod_ctx,
-                            &mut TempLocals::new(0),
-                        )
-                    })
-                    .collect(),
+                {
+                    let mut instrs = instrs
+                        .iter()
+                        .flat_map(|instr| {
+                            translate_insts::translate_instr(
+                                instr,
+                                fun_ctx,
+                                mod_ctx,
+                                &mut TempLocals::new(0),
+                            )
+                        })
+                        .collect_vec();
+                    instrs.push(wasm::Instr::End);
+                    instrs
+                }
             ),
         };
 
@@ -1063,7 +1134,132 @@ impl rwasm::Table {
 }
 
 impl rwasm::Module {
-    pub(crate) fn translate(&self, name: usize) -> wasm::Module {
+    
+    fn transform_globals(modules: Vec<(rwasm::Module, PathBuf)>) -> Vec<(rwasm::Module, PathBuf)>
+    {
+        // rwasm globals can do things like initialize structs. 
+        // wasm globals can only have one constant init expression 
+        // the way that compilers usually do this is they create .data sections 
+        // instead we are going to:
+        // - collect all globals across modules that are initialized
+        // - move their initialization instructions to the beginning of the main function in the main module 
+        // - set the global to be a constant pointer to a memory section that has been created
+        // - have the main modules import these globals and the original module export them 
+        
+        let mut main_global_var_with_init = Vec::new(); 
+        let mut new_modules = Vec::new(); 
+        for (module, path) in modules.iter() {
+
+            let module_name = path.file_stem()
+                .unwrap_or_else(||panic!("Error while getting module naem from file name"))
+                .to_str().unwrap()
+                .to_string();
+            trace!("module name {module_name}");
+
+            let mut new_globals = Vec::new(); 
+            for (global_ind, global) in module.globals.iter().enumerate() {
+                new_globals.push(
+                    match &global.init {
+                        ImportOrPresent::Import(_, _) => {
+                            Global{
+                                _type: global._type.clone(),
+                                init: global.init.clone(),
+                                export: global.export.clone(),
+                            }
+                        },
+                        ImportOrPresent::Present(instrs) => {
+
+                            trace!("Shifting Global {global_ind}"); 
+                            for instr in instrs {
+                                trace!(" {instr:?}"); 
+                            }
+        
+                            // Collect the init instructions along with the global they belong to
+                            if module_name != "main" {
+                                main_global_var_with_init.push(                        
+                                    (
+                                        Global {
+                                            _type: global._type.clone(),
+                                            init: ImportOrPresent::Import(module_name.clone(), global_ind.to_string()),
+                                            export: vec![],
+                                        }, 
+                                        instrs.clone()
+                                    )
+                                ); 
+                            };
+
+                            // Mark this global as exported and init it with some constant value 
+                            Global {
+                                _type: global._type.clone(),
+                                init: ImportOrPresent::Present(vec![
+                                    Instr::Constant(ConstType::I32(Sign::U), 0), 
+                                ]),
+                                export: vec![global_ind.to_string()],
+                            }
+                        },
+                    });
+                
+                
+            }
+
+            let mut new_module = module.clone(); 
+            new_module.globals = new_globals;
+            new_modules.push((new_module, path.clone()));
+
+        }
+
+        for (ref mut module, path) in new_modules.iter_mut() {
+            let module_name = path.file_stem()
+                .unwrap_or_else(||panic!("Error while getting module name from file name"))
+                .to_str().unwrap()
+                .to_string();
+            if module_name == "main" {
+
+                let num_last_global = module.globals.len(); 
+                let mut init_instrs = Vec::new(); 
+                for (ind, (new_global, init)) in main_global_var_with_init.iter().enumerate() {
+                    module.globals.push(new_global.clone()); 
+                    init_instrs.append(&mut init.clone()); 
+                    init_instrs.push(Instr::Global(GlobalOp::Set, (num_last_global + ind) as u32));
+                }
+
+                let last_func_ind = module.functions.len() -1; 
+                for (func_ind, func) in module.functions.iter_mut().enumerate() {
+                    if func_ind == last_func_ind {
+                        for instr in init_instrs.iter().rev() {
+                            func.body.insert(0, instr.clone())
+                        }
+                    }
+                }
+            }
+
+        }
+
+        return new_modules
+    }
+
+    pub fn translate_modules(modules: Vec<(Self, PathBuf)>) -> Vec<(wasabi_wasm::Module, PathBuf)> {
+        let modules = Self::transform_globals(modules); 
+
+        let mut wasm_modules = vec![]; 
+        for (module, path) in modules {
+            let module_name = path.file_stem()
+                .unwrap_or_else(||panic!("Error while getting module name from file name"))
+                .to_str().unwrap()
+                .to_string();
+            wasm_modules.push((
+                module.translate(module_name), 
+                path.clone()
+            )); 
+        }
+
+        return wasm_modules
+    }
+
+    
+    pub(crate) fn translate(&self, name: String) -> wasm::Module {
+        trace!("Translating module {name}");
+        
         // We have to import an alloc function, a free function and a memory.
         let import_alloc = wasabi_wasm::Function::new_imported(
             wasabi_wasm::FunctionType::new(
@@ -1106,20 +1302,32 @@ impl rwasm::Module {
         let mut global_map: HashMap<u32, Vec<u32>> = HashMap::new();
         let mut wasm_globals_count = 0;
 
+        trace!("Translating Globals {:?}", self.globals); 
+
         for (ind, global) in self.globals.iter().enumerate() {
-            let mut wasm_global = global.translate(&fun_ctx, &mod_ctx);
+            
+            trace!("Translating Global{ind} type:{:?}", global._type);
+
+            let translated_wasm_globals = global.translate(&fun_ctx, &mod_ctx);
             let global_ind = ind as u32;
             let wasm_globals_idx =
-                (wasm_globals_count..(wasm_globals_count + wasm_global.len() as u32)).collect();
-            wasm_globals_count += wasm_global.len() as u32;
+                (wasm_globals_count..(wasm_globals_count + translated_wasm_globals.len() as u32)).collect();
+            wasm_globals_count += translated_wasm_globals.len() as u32;
 
-            wasm_globals.append(&mut wasm_global);
-            rwasm_global_types.insert(global_ind, global._type._type.clone());
-            wasm_global_types.insert(global_ind, wasm_global.iter().map(|g| g.type_.0).collect());
+            trace!("Got Wasm Global {translated_wasm_globals:?}");
+
+            wasm_globals.append(&mut translated_wasm_globals.clone());
+            rwasm_global_types.insert(global_ind, global._type._type.clone());            
+
+            wasm_global_types.insert(global_ind, translated_wasm_globals.iter().map(|g|g.type_.0).collect_vec());
             global_map.insert(global_ind, wasm_globals_idx);
         }
 
         mod_ctx.rwasm_global_types = rwasm_global_types;
+        mod_ctx.wasm_global_types = wasm_global_types;
+        mod_ctx.global_map = global_map;
+
+        trace!("wasm global types {:?}", mod_ctx.wasm_global_types);
 
         let fts: HashMap<Ind<Function>, rwasm::FunctionType> = self
             .functions
@@ -1129,17 +1337,18 @@ impl rwasm::Module {
             .collect();
         mod_ctx.func_types = fts;
 
+
         for (func_idx, func) in self.functions.iter().enumerate() {
-            trace!("Function{func_idx}");
+            trace!("Translating Function{func_idx}");
             wasm_functions.push(func.translate(&mod_ctx));
         }
-
+        
         wasm::Module {
             functions: wasm_functions,
             globals: wasm_globals,
-            tables: vec![self.table.translate(&mod_ctx, name.to_string())],
+            tables: vec![self.table.translate(&mod_ctx, "table".to_owned())],
 
-            name: None,
+            name: Some(name),
             memories: vec![import_memory],
             start: None,
             custom_sections: Vec::new(),

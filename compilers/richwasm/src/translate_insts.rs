@@ -174,7 +174,6 @@ impl TempLocals {
             Some(local) => assert!(local.in_use),
             None => panic!("Local ind of {local_idx} has not seen before. If this a new variable, use set_new_local_var()"),
         }
-
         wasm::Instr::Local(wasm::LocalOp::Get, wasm::Idx::from(local_idx))
     }
 
@@ -229,7 +228,7 @@ fn resolve_set_operations(
     wasm_locals: &[u32],
     temp_locals: &mut TempLocals,
 ) -> Vec<wasm::Instr> {
-    trace!("\nResolve set operations");
+    trace!("\nResolving set operations");
     // We have to take the stack shape and put it into the var shape.
     // So we iterate over the stack shape.
 
@@ -264,6 +263,7 @@ fn resolve_set_operations(
         match (leftover, stack_ty, local_ty) {
             // TOS->[leftover(if any), val ty] -> var ty
             (None, ValType::I32, ValType::I32) | (None, ValType::I64, ValType::I64) => {
+                trace!("INSTRS {instrs:?}");
                 // [i32|i64] -> i32|i64
                 // Type of value on the stack and variable match.
                 // No conversion required, do a set.
@@ -421,6 +421,33 @@ fn resolve_set_operations(
             }
         }
     }
+
+    if let Some(ty) = leftover {
+        trace!("Found a stragler leftover {ty}");
+        // There is something leftover that should not be leftover 
+        // So there is a local.set that is left to be done 
+        let local_ty = var_shape.get(num_locals_set).unwrap();
+        let wasm_local_idx = *wasm_locals.get(num_locals_set).unwrap();
+
+        match (ty, local_ty) {
+            (ValType::I32, ValType::I32) |
+            (ValType::I64, ValType::I64) => {
+                instrs.push(get_set_instr(&mut num_locals_set, wasm_local_idx));
+            }
+
+            (ValType::I32, ValType::I64) => {
+                // We want to put an I32 into an I64 
+                // Extend i32 on stack to I64 
+                // Do local.set              
+                FunctionContext::i32_to_i64(&mut instrs);
+                instrs.push(get_set_instr(&mut num_locals_set, wasm_local_idx));
+            },
+            
+            _ => panic!("Unexpected case: {leftover:?} {local_ty:?}"),
+
+        }
+    }
+
     instrs
 }
 
@@ -431,6 +458,7 @@ fn resolve_get_operations(
     wasm_locals: &[u32],
 ) -> Vec<wasm::Instr> {
     trace!("\nResolve get operations");
+    
     // We have a variable shape and have to put it into the stack shape.
     // So we go over variable shape
 
@@ -454,9 +482,10 @@ fn resolve_get_operations(
     // This means that since we did local.sets from 0 to wasm_locals length, we do local.gets from wasm_locals length to 0
     let total_wasm_locals = wasm_locals.len();
     let mut num_slot = 0;
+    let mut num_local_get = total_wasm_locals;
 
     for (i, local_ty) in var_shape.iter().rev().enumerate() {
-        let num_local_get = total_wasm_locals - 1 - i;
+        num_local_get = total_wasm_locals - 1 - i;
         let stack_ty = stack_shape.get(num_slot).unwrap();
         let wasm_local_idx = *wasm_locals.get(num_local_get).unwrap();
 
@@ -610,6 +639,42 @@ fn resolve_get_operations(
             }
         }
     }
+
+
+    if let Some(ty) = leftover {
+        // There is something leftover that should not be leftover 
+        // So there *might* be a local.get that is left to be done 
+        let stack_ty = stack_shape.get(num_slot);
+        match stack_ty {
+            // There are no more stack types that are left to produce so please drop  
+            None => instrs.push(wasabi_wasm::Instr::Drop),
+                        
+            // There is a stack type left to produce! How convinent
+            Some(stack_ty) => {
+                assert!(false); 
+                // This will probably never be called but idk 
+                let wasm_local_idx = *wasm_locals.get(num_local_get).unwrap();
+                match (ty, stack_ty) {
+                    (ValType::I32, ValType::I32) |
+                    (ValType::I64, ValType::I64) => {
+                        instrs.push(get_get_instr(wasm_local_idx));
+                    }
+            
+                    (ValType::I32, ValType::I64) => {
+                        // There is an I32 on the stack that should be an I64 
+                        FunctionContext::i32_to_i64(&mut instrs);
+                        instrs.push(get_get_instr(wasm_local_idx));
+                    },
+                    
+                    _ => panic!("Unexpected case: {leftover:?} {stack_ty:?}"),
+            
+                }
+            }
+        
+        }        
+
+    }
+
     instrs
 }
 
@@ -622,6 +687,7 @@ pub(crate) fn translate_instr(
     match instr {
         // TOS->[stack state before instruction] -> [stack state after instruction]
         Instr::Block(bt, _, body) | Instr::Loop(bt, body) => {
+            trace!("Translating Block/Loop");
             let (params, results) = bt.get_wasm_types(fun_ctx);
             // Erase local effect, compile type
             // We are compiling to Multivalue Wasm where blocks can take in
@@ -641,6 +707,7 @@ pub(crate) fn translate_instr(
         }
 
         Instr::IfThenElse(bt, _le, if_body, else_body) => {
+            trace!("Translating IfThenElse");
             let (params, results) = bt.get_wasm_types(fun_ctx);
 
             let mut instrs = vec![wasm::Instr::If(wasm::FunctionType::new(&params, &results))];
@@ -664,6 +731,8 @@ pub(crate) fn translate_instr(
         }
 
         Instr::Array(op, _type) => {
+            trace!("Translating Array");
+
             let mut instrs = Vec::new();
 
             match op {
@@ -834,9 +903,11 @@ pub(crate) fn translate_instr(
                     let struct_ptr = temp_locals.get_new_local_var(ValType::I32);
                     instrs.push(temp_locals.set_local_var(struct_ptr));
 
-                    // Calculate offset as size of type * ind (we go to the end of the field since we work in reverse)
+                    // Calculate offset as size of type * (ind+1) (we go to the end of the field since we work in reverse)
                     let size_of_type = _type.to_u32(fun_ctx);
                     instrs.push(temp_locals.get_local_var(ind));
+                    instrs.push(wasm::Instr::Const(wasm::Val::I32(1)));
+                    instrs.push(wasm::Instr::Binary(wasm::BinaryOp::I32Add));                    
                     instrs.push(wasm::Instr::Const(wasm::Val::I32(size_of_type as i32)));
                     instrs.push(wasm::Instr::Binary(wasm::BinaryOp::I32Mul));
 
@@ -884,6 +955,8 @@ pub(crate) fn translate_instr(
         }
 
         Instr::Struct(op, value_types) => {
+            trace!("Translating Struct");
+            
             let mut instrs: Vec<wasm::Instr> = Vec::new();
 
             match op {
@@ -1011,7 +1084,12 @@ pub(crate) fn translate_instr(
                 }
 
                 // struct.set : [ptr, t*] -> [ptr]
-                StructOp::Set(ind) => {
+                StructOp::Set(ind, pt ) => {
+
+                    if let PreType::Unit = pt {
+                        return vec![]
+                    }
+
                     let ind = *ind as usize;
 
                     // Get the (rwasm) type of struct field with ind and
@@ -1081,7 +1159,13 @@ pub(crate) fn translate_instr(
                 }
 
                 // struct.swap : [ptr, t*] -> [ptr, t_old*]
-                StructOp::Swap(ind) => {
+                StructOp::Swap(ind, pt, ) => {
+
+                    let setting_unit = match pt {
+                        PreType::Unit => true,
+                        _ => false
+                    }; 
+
                     let ind = *ind as usize;
 
                     // Get the (rwasm) type of struct field with ind and
@@ -1095,7 +1179,9 @@ pub(crate) fn translate_instr(
                     let mut locals = Vec::new();
                     for wasm_ty in wasm_types_of_field.iter().rev() {
                         let local = temp_locals.get_new_local_var(*wasm_ty);
-                        instrs.push(temp_locals.set_local_var(local));
+                        if !setting_unit {
+                            instrs.push(temp_locals.set_local_var(local));
+                        }
                         locals.push(local);
                     }
 
@@ -1136,11 +1222,13 @@ pub(crate) fn translate_instr(
                         instrs.push(temp_locals.set_local_var(old_data));
                         old_values.push(old_data);
 
-                        // Store [ptr data] -> []
-                        // The data is already TOS so load working pointer and store in memory
-                        instrs.push(temp_locals.get_local_var(working_ptr));
-                        instrs.push(temp_locals.get_local_var(*data));
-                        instrs.push(store(*wasm_ty));
+                        if !setting_unit {
+                            // Store [ptr data] -> []
+                            // The data is already TOS so load working pointer and store in memory
+                            instrs.push(temp_locals.get_local_var(working_ptr));
+                            instrs.push(temp_locals.get_local_var(*data));
+                            instrs.push(store(*wasm_ty));
+                        }
 
                         temp_locals.free_local_var(*data);
                     }
@@ -1165,6 +1253,8 @@ pub(crate) fn translate_instr(
 
         // call : [p*] -> [r*]
         Instr::Call(ind, vars) => {
+            trace!("Translating Call");
+
             // Why do we need Vec<Index>?
             // The function you are calling might have size variables that have to instantiated.
             // We store all instantiated variables in a pointer and pass it to the function being called.
@@ -1213,7 +1303,7 @@ pub(crate) fn translate_instr(
                 .collect::<Vec<_>>();
 
             // Transform the wasm stack to the rwasm calling convention
-            crate::rwasm::FunctionType::to_callee_stack(
+            match crate::rwasm::FunctionType::to_callee_stack(
                 &caller_params,
                 &callee_ft.params,
                 fun_ctx,
@@ -1221,7 +1311,10 @@ pub(crate) fn translate_instr(
                 mod_ctx,
                 &mut instrs,
                 temp_locals,
-            );
+            ) {
+                Ok(_) => (),
+                Err(_) => panic!("To callee stack transformation failed because they had different concrete types. Caller stack:{caller_params:?}, Callee stack:{:?}", &callee_ft.params),
+            }
 
             // Call the function
             let func_call_ind = ind.0 + mod_ctx.num_imports as u32;
@@ -1236,7 +1329,7 @@ pub(crate) fn translate_instr(
             // Transform the rwasm calling convention to the wasm stack expected.
             // The function might return type variables in which case,
             // they need to be unboxed in order and put on the stack.
-            crate::rwasm::FunctionType::to_caller_stack(
+            match crate::rwasm::FunctionType::to_caller_stack(
                 &caller_results,
                 &callee_ft.results,
                 fun_ctx,
@@ -1244,20 +1337,27 @@ pub(crate) fn translate_instr(
                 mod_ctx,
                 &mut instrs,
                 temp_locals,
-            );
+            ) {
+                Ok(_) => (),
+                Err(_) => panic!("To caller stack transformation failed because they had different concrete types. Caller stack:{caller_results:?}, Callee stack:{:?}", &callee_ft.results),
+            }
 
             instrs
         }
 
         // coderef : [] -> [i32] (ind)
-        Instr::CodeRef(ind) => vec![wasm::Instr::Const(wasm::Val::I32(ind.0 as i32))],
+        // coderef instructions compile to an i32 index into the function table
+        Instr::CodeRef(ind) => {
+            trace!("Translating Coderef");
+            vec![wasm::Instr::Const(wasm::Val::I32(ind.0 as i32))]
+        },
 
         // inst : [] -> []
         Instr::Inst(_indicies) => vec![],
 
         // call_indirect : [p*, ptr] -> [r*]
         Instr::CallIndirect(bt) => {
-            trace!("Call indirect");
+            trace!("Translating CallIndirect Instruction");
             let mut instrs = Vec::new();
 
             // Save index on TOS
@@ -1272,11 +1372,13 @@ pub(crate) fn translate_instr(
                 .iter()
                 .enumerate()
                 .for_each(|(index_into_table, fn_idx)| {
-                    let ft = mod_ctx.func_types.get(fn_idx).expect("msg");
+                    let ft = mod_ctx.func_types.get(fn_idx).unwrap_or_else(||panic!("FunctionType not found for index {fn_idx:?}"));
                     if ft.params.len() == bt.params.len() && ft.results.len() == bt.results.len() {
                         possible_funs.push((index_into_table, ft));
                     }
+
                 });
+            trace!("This function could possibly call {} functions", possible_funs.len());
 
             let caller_wasm_params = bt
                 .params
@@ -1284,76 +1386,110 @@ pub(crate) fn translate_instr(
                 .flat_map(|ty| ty.to_wasm_types(fun_ctx))
                 .collect::<Vec<_>>();
 
+            trace!("Caller RichWasm Params: {:?}", bt.params); 
+            trace!("Caller Wasm Params: {:?}", caller_wasm_params); 
+
             let caller_wasm_results = bt
                 .results
                 .iter()
                 .flat_map(|ty| ty.to_wasm_types(fun_ctx))
                 .collect::<Vec<_>>();
 
+            trace!("Caller RichWasm Results: {:?}", bt.results); 
+            trace!("Caller Wasm Results: {:?}", caller_wasm_results); 
+
+            trace!("Now specializing the stack according to each possible function that can be called. ");
+
+            let mut num_specialized_funcs = 0; 
             // For each possible function,
-            for (index_into_table, callee_ft) in &possible_funs {
+            for (count, (index_into_table, callee_ft)) in possible_funs.iter().enumerate() {
+
+                let mut specialized_instrs = Vec::new(); 
+
+                trace!("Specializing for {count} Function");
                 // TODO: Ideally, we don't recompute this for each function and store in mod_ctx.
                 let (callee_wasm_ft, callee_fun_ctx) = callee_ft.get_wasm_types();
 
+                trace!("Callee RichWasm Params: {:?}", callee_ft.params); 
+                trace!("Callee Wasm Params: {:?}", callee_wasm_ft.inputs()); 
+                trace!("Tranforming to callee calling convention"); 
+
                 // If coderef == fn_ind {
-                instrs.push(temp_locals.get_local_var(coderef_idx));
-                instrs.push(wasm::Instr::Const(wasm::Val::I32(*index_into_table as i32)));
-                instrs.push(wasm::Instr::Binary(wasm::BinaryOp::I32Eq));
-                instrs.push(wasm::Instr::If(wasm::FunctionType::new(
+                specialized_instrs.push(temp_locals.get_local_var(coderef_idx));
+                specialized_instrs.push(wasm::Instr::Const(wasm::Val::I32(*index_into_table as i32)));
+                specialized_instrs.push(wasm::Instr::Binary(wasm::BinaryOp::I32Eq));
+                specialized_instrs.push(wasm::Instr::If(wasm::FunctionType::new(
                     &caller_wasm_params,
                     &caller_wasm_results,
                 )));
 
                 // Transform the wasm stack according to the callee calling conventions
-                crate::rwasm::FunctionType::to_callee_stack(
+                match crate::rwasm::FunctionType::to_callee_stack(
                     &bt.params,
                     &callee_ft.params,
                     fun_ctx,
                     &callee_fun_ctx,
                     mod_ctx,
-                    &mut instrs,
+                    &mut specialized_instrs,
                     temp_locals,
-                );
-
-                instrs.push(temp_locals.get_local_var(coderef_idx));
-                instrs.push(wasm::Instr::CallIndirect(
+                ) {
+                    Ok(_) => (),
+                    Err(_) => continue,
+                };
+            
+                specialized_instrs.push(temp_locals.get_local_var(coderef_idx));
+                specialized_instrs.push(wasm::Instr::CallIndirect(
                     callee_wasm_ft,
                     wasm::Idx::<wasm::Table>::from(0_u32),
                 ));
 
+                trace!("Callee RichWasm Results: {:?}", callee_ft.results); 
+                trace!("Callee Wasm Results: {:?}", callee_wasm_ft.results()); 
+                trace!("Transforming according to caller calling conventions."); 
+
                 // Transform the wasm stack according to the caller conventions
-                crate::rwasm::FunctionType::to_caller_stack(
+                match crate::rwasm::FunctionType::to_caller_stack(
                     &bt.results,
                     &callee_ft.results,
                     fun_ctx,
                     &callee_fun_ctx,
                     mod_ctx,
-                    &mut instrs,
+                    &mut specialized_instrs,
                     temp_locals,
-                );
+                ) {
+                    Ok(_) => (),
+                    Err(_) => continue,
+                };
 
-                instrs.push(wasm::Instr::Else);
+                specialized_instrs.push(wasm::Instr::Else);
+
+                num_specialized_funcs += 1;
+                instrs.append(&mut specialized_instrs);
             }
 
-            if !possible_funs.is_empty() {
+            if num_specialized_funcs > 0  {
                 // At the end, else { unreachable }, since we know all the functions that coderef could call statically
                 instrs.push(wasm::Instr::Unreachable);
                 instrs.push(wasm::Instr::End);
 
                 // Push as many Ends as Ifs that we created.
-                for _ in 0..possible_funs.len() - 1 {
+                for _ in 0..num_specialized_funcs - 1 {
                     instrs.push(wasm::Instr::End);
                 }
             }
 
             temp_locals.free_local_var(coderef_idx);
 
+            for instr in &instrs{
+                trace!("  {instr}");
+            }
+            trace!("Done translating CallIndirect Instruction");
             instrs
         }
 
         // variant.malloc: [t] -> [i32]
         Instr::VariantMalloc(ind, vec_pt, _qual) => {
-            trace!("variant malloc"); 
+            trace!("Translating Variant Malloc"); 
 
             // Variants are lowered as a pointer to heap.
             // The memory layout of variant is [ind, t*]
@@ -1427,7 +1563,7 @@ pub(crate) fn translate_instr(
 
         // variant.case : [t*, i32 (pointer)] -> [t*, (i32)?]
         Instr::VariantCase(qual, ty, bt, _le, bodies) => {
-            trace!("variant case");
+            trace!("Translating Variant Case");
             
             let mut instrs = Vec::new();
 
@@ -1451,12 +1587,12 @@ pub(crate) fn translate_instr(
             let blocktype = FunctionType::new(&params, &results);
 
             // block { block { block { block {
-            // The outermost block is a default block that just has a break out of it
-            instrs.push(wasm::Instr::Block(blocktype));
             instrs.append(&mut vec![wasm::Instr::Block(blocktype); num_blocks]);
-
+            // The innermost block is a default block that just has a break out of it
+            instrs.push(wasm::Instr::Block(blocktype));
+            
             // Generate default values for all the return types 
-            for result in results {
+            for result in &results {
                 instrs.push(match result {
                     ValType::I32 => wasm::Instr::Const(wasm::Val::I32(0)),
                     ValType::I64 => wasm::Instr::Const(wasm::Val::I64(0)),
@@ -1484,17 +1620,17 @@ pub(crate) fn translate_instr(
             let num_bodies = bodies.len();
             for ((body_num, body), stack_ty) in bodies.iter().enumerate().zip(ty.iter()) {
                 
-                trace!("for case {body_num}, this is our body {body:?}");
+                trace!("for case {body_num}, this is our body {body:?} and this is our stack_ty {stack_ty:?}");
                 
                 // Read from the heap according to stack type expected
                 for wasm_ty in stack_ty.to_wasm_types(fun_ctx) {
                     // Load from heap
                     instrs.push(temp_locals.get_local_var(working_ptr));
                     instrs.push(load(wasm_ty));
-
+                    
                     // Update working pointer
                     instrs.push(temp_locals.get_local_var(working_ptr));
-                    instrs.push(wasm::Instr::Const(wasm::Val::I32(32)));
+                    instrs.push(wasm::Instr::Const(wasm::Val::I32(get_size(wasm_ty))));
                     instrs.push(wasm::Instr::Binary(wasm::BinaryOp::I32Add));
                     instrs.push(temp_locals.set_local_var(working_ptr));
                 }
@@ -1506,13 +1642,10 @@ pub(crate) fn translate_instr(
                         .flat_map(|instr| translate_instr(instr, fun_ctx, mod_ctx, temp_locals))
                         .collect(),
                 );
-                instrs.push(wasm::Instr::Br(wasm::Label::from(num_bodies - body_num)));
+
+                instrs.push(wasm::Instr::Br(wasm::Label::from(num_bodies - body_num -1)));
                 instrs.push(wasm::Instr::End);
             }
-
-            // The default body should never be reached
-            // instrs.push(wasm::Instr::Unreachable);
-            // instrs.push(wasm::Instr::End);
 
             // Note that the qualifier on a variant case instruction will determine
             // whether the variant is freed or not (linear=free). In typechecking
@@ -1521,7 +1654,6 @@ pub(crate) fn translate_instr(
             //
             // If Qual GC -> return pointer and block returns
             // If Qual Lin -> free the underlying memory, return whatever the block returns
-            trace!("end of cases"); 
 
             let qual = match qual {
                 Qual::Var(ind) => fun_ctx.qual_closure[&ind.0],
@@ -1534,18 +1666,38 @@ pub(crate) fn translate_instr(
                     instrs.push(temp_locals.get_local_var(variant_ptr));
                     instrs.push(mod_ctx.free.clone());
                 }
-                QualConst::GC => ()//instrs.push(temp_locals.get_local_var(variant_ptr)),
+                QualConst::GC => {
+                    // The stack returned by Variant Case with the GC/Unr Qual is 
+                    // [variant_ptr, everything returned by variant] <- TOS
+                    // So we have to save expected results in local variables, load the variant pointer and then load expected results. 
+
+                    let mut results_in_rev = vec![]; 
+                    for wasm_ty in results.iter().rev() {
+                        let res = temp_locals.get_new_local_var(*wasm_ty);
+                        instrs.push(temp_locals.set_local_var(res));    
+                        results_in_rev.push(res);
+                    }
+                    instrs.push(temp_locals.get_local_var(variant_ptr));
+                    for res in results_in_rev.iter().rev() {
+                        instrs.push(temp_locals.get_local_var(*res));
+                        temp_locals.free_local_var(*res);                           
+                    }
+                }
             }
+
             temp_locals.free_local_var(variant_ptr);
-            trace!("end of variant case");
+            trace!("Variant Case instructions");
             for instr in &instrs {
                 trace!("  {instr}")
             }
+            trace!("end of variant case");
             instrs
         }
 
         // exist.pack : [t*] -> [i32]
         Instr::ExistPack(pt, ht, _qual) => {
+            trace!("Translating Exists Pack");
+
             let mut instrs = Vec::new();
 
             // The stack shape has to conform to the shape in the heaptype.
@@ -1554,18 +1706,21 @@ pub(crate) fn translate_instr(
 
             let callee_params = match ht {
                 HeapType::Variant(_) | HeapType::Struct(_) | HeapType::Array(_) => {
-                    panic!("impossible")
+                    panic!("Found Variant/Struct/Array HeapType when trying to fetch callee_params for ExistPack. Should only have found an Exists.")
                 }
                 HeapType::Exists(_, _, ty) => ty.clone(),
             };
+
+            
             let mut ty_var_map = HashMap::new();
             ty_var_map.insert(0, pt.clone());
+            
             let caller_params = callee_params.instantiate_ty(&ty_var_map);
 
-            trace!("CALLER: {caller_params:?}");
-            trace!("CALLEE: {callee_params:?}");
+            trace!("CALLER PARAMS: {caller_params:?}");
+            trace!("CALLEE PARAMS: {callee_params:?}");
 
-            crate::rwasm::FunctionType::to_callee_stack(
+            match crate::rwasm::FunctionType::to_callee_stack(
                 &[caller_params],
                 &[callee_params.clone()],
                 fun_ctx,
@@ -1573,10 +1728,15 @@ pub(crate) fn translate_instr(
                 mod_ctx,
                 &mut instrs,
                 temp_locals,
-            );
+            ) {
+                Ok(_) => (),
+                Err(e) => panic!("{e}"),
+            };
 
-            // Get size of pretype and malloc
-            let size = pt.to_u32(fun_ctx) as i32;
+            // Get size of callee params and malloc            
+            let size = callee_params.to_u32(fun_ctx) as i32;
+            trace!("Size of pretype of malloc: {size}");
+            trace!("{}",wasm::Instr::Const(wasm::Val::I32(size)));
             instrs.push(wasm::Instr::Const(wasm::Val::I32(size)));
             instrs.push(mod_ctx.malloc.clone());
 
@@ -1621,30 +1781,34 @@ pub(crate) fn translate_instr(
             instrs.push(temp_locals.get_local_var(ex_ptr));
             temp_locals.free_local_var(ex_ptr);
 
+            trace!("Translation of Exists pack");
+            for instr in &instrs {
+                trace!("  {instr}");
+            }
+            trace!("Ending Translation of Exists pack");
+
             instrs
         }
 
         // [t*, i32] -> [t*, i32?]
-        Instr::ExistUnpack(_qual, bt, _le, body, pt) => {
-            trace!("Exist unpack");
+        Instr::ExistUnpack(qual, bt, _le, body, pt) => {
+            trace!("Translating Exist unpack");
             let mut instrs = Vec::new();
 
             // Save the pointer
             let ex_ptr = temp_locals.get_new_local_var(ValType::I32);
             instrs.push(temp_locals.set_local_var(ex_ptr));
 
-            instrs.push(wasm::Instr::Block(FunctionType::new(
-                bt.params
-                    .iter()
-                    .flat_map(|p| p.to_wasm_types(fun_ctx))
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-                bt.results
-                    .iter()
-                    .flat_map(|p| p.to_wasm_types(fun_ctx))
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            )));
+            let params = bt.params
+                .iter()
+                .flat_map(|p| p.to_wasm_types(fun_ctx))
+                .collect::<Vec<_>>(); 
+            let results = bt.results
+                .iter()
+                .flat_map(|p| p.to_wasm_types(fun_ctx))
+                .collect::<Vec<_>>();
+
+            instrs.push(wasm::Instr::Block(FunctionType::new(params.as_slice(), results.as_slice())));
 
             // Initialize working pointer to the start of the ex_ptr
             let working_ptr = temp_locals.get_new_local_var(ValType::I32);
@@ -1668,7 +1832,6 @@ pub(crate) fn translate_instr(
 
                 trace!("laoding {wasm_ty}");
             }
-            temp_locals.free_local_var(working_ptr);
 
             // Translate the body
             instrs.append(
@@ -1678,24 +1841,42 @@ pub(crate) fn translate_instr(
                     .collect::<Vec<_>>(),
             );
 
+            temp_locals.free_local_var(working_ptr);
+
             instrs.push(wasm::Instr::End);
 
             // If Qual GC -> return pointer and block returns
             // If Qual Lin -> free the underlying memory, return whatever the block returns
 
-            // let qual = match qual {
-            //     Qual::Var(ind) => fun_ctx.qual_closure[&ind.0],
-            //     Qual::Lin => QualConst::Lin,
-            //     Qual::GC => QualConst::GC,
-            // };
+            let qual = match qual {
+                Qual::Var(ind) => fun_ctx.qual_closure[&ind.0],
+                Qual::Lin => QualConst::Lin,
+                Qual::GC => QualConst::GC,
+            };
 
-            //match qual {
-            //    QualConst::Lin => {
-            //        instrs.push(temp_locals.get_local_var(ex_ptr));
-            //        instrs.push(mod_ctx.free.clone());
-            //    }
-            //    QualConst::GC => instrs.push(temp_locals.get_local_var(ex_ptr)),
-            //}
+            match qual {
+                QualConst::Lin => {
+                    instrs.push(temp_locals.get_local_var(ex_ptr));
+                    instrs.push(mod_ctx.free.clone());
+                }
+                QualConst::GC => {
+                    // The stack returned by Exists Unpack with the GC/Unr Qual is 
+                    // [variant_ptr, everything returned by variant] <- TOS
+                    // So we have to save expected results in local variables, load the variant pointer and then load expected results. 
+
+                    let mut results_in_rev = vec![]; 
+                    for wasm_ty in results.iter().rev() {
+                        let res = temp_locals.get_new_local_var(*wasm_ty);
+                        instrs.push(temp_locals.set_local_var(res));    
+                        results_in_rev.push(res);
+                    }
+                    instrs.push(temp_locals.get_local_var(ex_ptr));
+                    for res in results_in_rev.iter().rev() {
+                        instrs.push(temp_locals.get_local_var(*res));
+                        temp_locals.free_local_var(*res);                           
+                    }
+                }
+            }
 
             temp_locals.free_local_var(ex_ptr);
 
@@ -1703,48 +1884,87 @@ pub(crate) fn translate_instr(
         }
 
         Instr::Global(op, idx) => {
+            trace!("Translating Global {op:?} for idx{idx:?}");
+            
             let _type = mod_ctx
                 .rwasm_global_types
                 .get(idx)
                 .expect("Each RichWasm Global Index should be mapped to its type");
+            trace!("Global Rwasm Type: {:?}", _type);
 
             let ty_size = _type.to_wasm_types(fun_ctx);
-            let wasm_types = mod_ctx.wasm_global_types.get(idx).unwrap();
+            let wasm_types = mod_ctx.wasm_global_types
+                .get(idx)
+                .unwrap_or_else(||panic!("Expected global at index {idx} but did not find."));
             let wasm_globals = &mod_ctx.get_wasm_global_list(*idx);
+            trace!("Wasm Global Types {:?}", mod_ctx.wasm_global_types);
+            trace!("Global Wasm Type: {:?}", wasm_types);
 
-            match op {
+            let instrs = match op {
                 GlobalOp::Get => resolve_get_operations(false, wasm_types, &ty_size, wasm_globals),
 
                 GlobalOp::Set => {
                     resolve_set_operations(false, wasm_types, &ty_size, wasm_globals, temp_locals)
                 }
+            }; 
+
+            trace!("Global op Instrs produced: ");
+            for instr in &instrs {
+                trace!("  {instr}");
             }
+            instrs
         }
 
         Instr::Local(op, ind) => {
+            trace!("Translating Local Ops");
+
             let wasm_locals = &fun_ctx.get_wasm_local_list(*ind);
             let wasm_local_types = &fun_ctx.wasm_local_types[ind];
 
             match op {
-                LocalOp::Get(_qual, pt) => resolve_get_operations(
+                LocalOp::Get(_qual, pt) => {
+                    trace!("\nTranslation of local.get({ind})");
+                    
+                    let instrs = resolve_get_operations(
                     true,
                     wasm_local_types,
                     &pt.to_wasm_types(fun_ctx),
                     wasm_locals,
-                ),
+                    ); 
+
+                    for instr in &instrs {
+                        trace!("  {instr}");
+                    }
+
+                    instrs
+                }
+                ,
 
                 LocalOp::Set(ty) => {
                     // The stack types will be in reverse of what the local type is.
                     let stack_ty = &mut ty.to_wasm_types(fun_ctx);
                     stack_ty.reverse();
+                    
+                    trace!("\nTranslation of local.set({ind})");
+                    trace!("Stack type: {stack_ty:?}");                    
+                    trace!("Wasm Local type: {wasm_local_types:?}");
 
-                    resolve_set_operations(
+                    let instrs = resolve_set_operations(
                         true,
                         wasm_local_types,
                         stack_ty,
                         wasm_locals,
                         temp_locals,
-                    )
+                    ); 
+                    
+                    for instr in &instrs {
+                        trace!("  {instr}");
+                    }
+                    
+                    trace!("End of Translation of local.set({ind})\n");
+
+
+                    instrs
                 }
 
                 LocalOp::Tee(ty) => {
@@ -1774,13 +1994,15 @@ pub(crate) fn translate_instr(
         }
 
         // Effectively erased. Erase local effects and convert to a block.
-        Instr::MemUnpack(bt, _le, body) => {
-            trace!("MemUnpack");
+        Instr::MemUnpack(bt, _le, body, ty) => {
+            trace!("Translating MemUnpack");
 
-            // FIXME: i32 should be the first element in the params of the bt since it references a struct
+
+            let mut params = vec![];
+            let mut type_being_unpacked = (*ty.0).to_wasm_types(fun_ctx); 
+            params.append(&mut type_being_unpacked); 
 
             let (mut old_params, results) = bt.get_wasm_types(fun_ctx);
-            let mut params = vec![ValType::I32];
             params.append(&mut old_params);
 
             let block_ty = wasm::FunctionType::new(&params, &results);
@@ -1816,7 +2038,12 @@ pub(crate) fn translate_instr(
         /* Identical */
         Instr::Unreachable => vec![wasm::Instr::Unreachable],
         Instr::Nop => vec![wasm::Instr::Nop],
-        Instr::Drop => vec![wasm::Instr::Drop],
+        Instr::Drop(pt) => {
+            match pt {
+                PreType::Unit => vec![],
+                _ => vec![wasm::Instr::Drop],
+            }            
+        },
         Instr::Select => vec![wasm::Instr::Select],
         Instr::Return => vec![wasm::Instr::Return],
         Instr::Br(lab) => vec![wasm::Instr::Br(wasm::Label::from(*lab))],

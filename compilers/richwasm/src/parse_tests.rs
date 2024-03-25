@@ -82,7 +82,7 @@ lazy_static! {
                 table: rwasm::Table{ entries: vec![] },
                 globals: vec![
                     rwasm::Global{
-                        _type: rwasm::GlobalType{ mutable: false, _type: PreType::Unit },
+                        _type: rwasm::GlobalType{ mutable: true, _type: PreType::Unit },
                         init: ImportOrPresent::Present(vec![]),
                         export: vec!["glob".to_owned()]
                 }]
@@ -96,7 +96,7 @@ lazy_static! {
                 table: rwasm::Table{ entries: vec![] },
                 globals: vec![
                     rwasm::Global{
-                        _type: rwasm::GlobalType{ mutable: false, _type: PreType::Unit },
+                        _type: rwasm::GlobalType{ mutable: true, _type: PreType::Unit },
                         init: ImportOrPresent::Import("foo".to_string(), "bar".to_string()),
                         export: vec!["glob".to_owned()]
                 }]
@@ -864,7 +864,7 @@ lazy_static! {
                         },
                         locals: vec![],
                         body: vec![
-                            Instr::Drop
+                            Instr::Drop(PreType::Unit)
                         ],
                         init: ImportOrPresent::Present(vec![]),
                         export: vec![] }
@@ -872,7 +872,7 @@ lazy_static! {
                 table: rwasm::Table{ entries: vec![] },
                 globals: vec![]
             },
-            "( ((Fun () (() (() ())) () (IDrop))) () () )",
+            "( ((Fun () (() (() ())) () ((IDrop Unit)))) () () )",
             "Drop Instruction"
         ),
         (
@@ -1523,7 +1523,8 @@ lazy_static! {
                             Instr::MemUnpack(
                                 BlockType { params: vec![], results: vec![] },
                                 LocalEffect(vec![]),
-                                vec![]
+                                vec![], 
+                                Type(Box::new(PreType::Unit), Qual::Lin)
                             )],
                         init: ImportOrPresent::Present(vec![]),
                         export: vec![] }
@@ -1532,7 +1533,7 @@ lazy_static! {
                 globals: vec![]
             },
             "( ((Fun () (() (() ())) () ((
-                IMemUnpack (() ()) () ()
+                IMemUnpack (() ()) () () (Unit (QualC Lin))
             )))) () () )",
             "MemUnPack Instruction"
         ),
@@ -1626,7 +1627,7 @@ lazy_static! {
                         locals: vec![],
                         body: vec![
                             Instr::Struct(
-                                StructOp::Set(0),
+                                StructOp::Set(0, PreType::Unit),
                                 vec![]
                             )],
                         init: ImportOrPresent::Present(vec![]),
@@ -1636,7 +1637,7 @@ lazy_static! {
                 globals: vec![]
             },
             "( ((Fun () (() (() ())) () ((
-                IStructSet 0 ()
+                IStructSet 0 () Unit
             )))) () () )",
             "StructSet Instruction"
         ),
@@ -1652,7 +1653,7 @@ lazy_static! {
                         locals: vec![],
                         body: vec![
                             Instr::Struct(
-                                StructOp::Swap(0),
+                                StructOp::Swap(0, PreType::Unit),
                                 vec![]
                             )],
                         init: ImportOrPresent::Present(vec![]),
@@ -1662,7 +1663,7 @@ lazy_static! {
                 globals: vec![]
             },
             "( ((Fun () (() (() ())) () ((
-                IStructSwap 0 ()
+                IStructSwap 0 () Unit
             )))) () () )",
             "StructSwap Instruction"
         ),
@@ -2055,13 +2056,13 @@ lazy_static! {
             "( ((Fun () (() (() ())) () (
                 (INe (Ib I32 Iadd))
                 (INe (Ib I32 Isub))
-                (INe (Ib I32 S Idiv))
-                (INe (Ib I32 U Idiv))
+                (INe (Ib I32 (Idiv S)))
+                (INe (Ib I32 (Idiv U)))
                 
                 (INe (Ib I64 Iadd))
                 (INe (Ib I64 Isub))
-                (INe (Ib I64 S Idiv))
-                (INe (Ib I64 U Idiv))
+                (INe (Ib I64 (Idiv S)))
+                (INe (Ib I64 (Idiv U)))
             ))) () () )",
             "Numeric Integer Binary Instruction"
         ),
@@ -2188,12 +2189,12 @@ lazy_static! {
             "( ((Fun () (() (() ())) () (
                 (INe (Ir I32 Ieq))
                 (INe (Ir I32 Ine))
-                (INe (Ir I32 S Ilt))
-                (INe (Ir I32 U Ilt))
+                (INe (Ir I32 (Ilt S)))
+                (INe (Ir I32 (Ilt U)))
                 (INe (Ir I64 Ieq))
                 (INe (Ir I64 Ine))
-                (INe (Ir I64 S Ilt))
-                (INe (Ir I64 U Ilt))
+                (INe (Ir I64 (Ilt S)))
+                (INe (Ir I64 (Ilt U)))
             ))) () () )",
             "Numeric Integer Compare (Ir) Instruction"
         ),
@@ -2242,56 +2243,6 @@ lazy_static! {
                         },
                         locals: vec![],
                         body: vec![
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I32WrapI64)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I32ReinterpretF32)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I32TruncF32S)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I32TruncF32U)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I32TruncF64S)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I32TruncF64U)),
-
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64ExtendI32S)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64ExtendI32U)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64ReinterpretF64)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64TruncF32S)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64TruncF32U)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64TruncF64S)),
-                            Instr::Numeric(NumericInstr::Unary(UnaryOp::I64TruncF64U)),
-                        ],
-                        init: ImportOrPresent::Present(vec![]),
-                        export: vec![] }
-                ],
-                table: rwasm::Table{ entries: vec![] },
-                globals: vec![]
-            },
-            "( ((Fun () (() (() ())) () (
-                (INe (Cvt I32 IWrap I64))
-                (INe (Cvt I32 IReinterpret F32))
-                (INe (Cvt I32 ITrunc F32 S))
-                (INe (Cvt I32 ITrunc F32 U))
-                (INe (Cvt I32 ITrunc F64 S))
-                (INe (Cvt I32 ITrunc F64 U))
-
-                (INe (Cvt I64 IExtend I32 S))
-                (INe (Cvt I64 IExtend I32 U))
-                (INe (Cvt I64 IReinterpret F64))
-                (INe (Cvt I64 ITrunc F32 S))
-                (INe (Cvt I64 ITrunc F32 U))
-                (INe (Cvt I64 ITrunc F64 S))
-                (INe (Cvt I64 ITrunc F64 U))
-            ))) () () )",
-            "Numeric Integer Cvt Instructions"
-        ),
-        (
-            rwasm::Module{
-                functions: vec![
-                    Function{
-                        _type: FunctionType {
-                            params: vec![],
-                            results: vec![],
-                            vardecl: vec![]
-                        },
-                        locals: vec![],
-                        body: vec![
                             Instr::Numeric(NumericInstr::Unary(UnaryOp::F32ConvertI32S)),
                             Instr::Numeric(NumericInstr::Unary(UnaryOp::F32ConvertI32U)),
                             Instr::Numeric(NumericInstr::Unary(UnaryOp::F32ConvertI64S)),
@@ -2313,12 +2264,12 @@ lazy_static! {
                 globals: vec![]
             },
             "( ((Fun () (() (() ())) () (
-                (INe (CvtF F32 IConvert I32 S))
-                (INe (CvtF F32 IConvert I32 U))
-                (INe (CvtF F32 IConvert I64 S))
-                (INe (CvtF F32 IConvert I64 U))
-                (INe (CvtF F32 IReinterpret I32))
-                (INe (CvtF F32 IDemote F64))
+                (INe (CvtF F32 (IConvert I32 S)))
+                (INe (CvtF F32 (IConvert I32 U)))
+                (INe (CvtF F32 (IConvert I64 S)))
+                (INe (CvtF F32 (IConvert I64 U)))
+                (INe (CvtF F32 (IReinterpret I32)))
+                (INe (CvtF F32 (IDemote F64)))
 
                 (INe (CvtF F64 IConvert I32 S))
                 (INe (CvtF F64 IConvert I32 U))

@@ -1,43 +1,58 @@
-(((Fun (main)
- (()
-  (()
-   (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
-    ((Num (Int U I64)) (QualC Unr)))))
- ((SizeC 64) (SizeC 64))
- ((IVal (Num (Int U I32) (Second 0))) (IVal (Num (Int U I32) (Second 1)))
-  (IGroup 2 (QualC Unr)) (IVal (Num (Int U I64) (First 3)))
-  (IStructMalloc ((SizeC 64) (SizeC 64)) (QualC Unr)
-   (((Prod
-      (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
-     (QualC Unr))
-    ((Num (Int U I64)) (QualC Unr))))
-  (IMemUnpack
-   (()
-    (
-      ((Num (Int U I32)) (QualC Unr))
-      ((Num (Int U I32)) (QualC Unr))
-      ((Num (Int U I64)) (QualC Unr))
-    ))
-   ()
-   ((IStructGet 0
-     (((Prod
-        (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
-       (QualC Unr))
-      ((Num (Int U I64)) (QualC Unr))))
-    (ISet_local 0
-     ((Prod
-       (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
-      (QualC Unr)))
-    (IStructGet 1
-     (((Prod
-        (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
-       (QualC Unr))
-      ((Num (Int U I64)) (QualC Unr))))
-    (ISet_local 1 ((Num (Int U I64)) (QualC Unr))) IDrop
-    (IGet_local 0 (QualC Unr)
-     (Prod
-      (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr)))))
-    IUngroup (IGet_local 1 (QualC Unr) (Num (Int U I64))) (IVal Unit)
-    (ISet_local 0 (Unit (QualC Unr))) (IVal Unit)
-    (ISet_local 1 (Unit (QualC Unr))))))))
-() ())
+  (((Fun (main)
+     (()
+      (()
+       (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
+        ((Num (Int U I64)) (QualC Unr)))))
+     ((SizeC 64) (SizeC 64))
+     ((IVal (Num (Int U I32) (Second 0))) (IVal (Num (Int U I32) (Second 1)))
+      (IGroup 2 (QualC Unr)) (IVal (Num (Int U I64) (First 3)))
+      (IStructMalloc ((SizeC 64) (SizeC 64)) (QualC Unr)
+       (((Prod
+          (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
+         (QualC Unr))
+        ((Num (Int U I64)) (QualC Unr))))
+      (IMemUnpack
+       (()
+        (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
+         ((Num (Int U I64)) (QualC Unr))))
+       ()
+       ((IStructGet 0
+         (((Prod
+            (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
+           (QualC Unr))
+          ((Num (Int U I64)) (QualC Unr))))
+        (ISet_local 0
+         ((Prod
+           (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
+          (QualC Unr)))
+        (IStructGet 1
+         (((Prod
+            (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
+           (QualC Unr))
+          ((Num (Int U I64)) (QualC Unr))))
+        (ISet_local 1 ((Num (Int U I64)) (QualC Unr)))
+        (IDrop
+         (Ref W (LocV 0)
+          (Struct
+           ((((Prod
+               (((Num (Int U I32)) (QualC Unr))
+                ((Num (Int U I32)) (QualC Unr))))
+              (QualC Unr))
+             (SizeC 64))
+            (((Num (Int U I64)) (QualC Unr)) (SizeC 64))))))
+        (IGet_local 0 (QualC Unr)
+         (Prod
+          (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr)))))
+        IUngroup (IGet_local 1 (QualC Unr) (Num (Int U I64))) (IVal Unit)
+        (ISet_local 0 (Unit (QualC Unr))) (IVal Unit)
+        (ISet_local 1 (Unit (QualC Unr))))
+       ((Ref W (LocV 0)
+         (Struct
+          ((((Prod
+              (((Num (Int U I32)) (QualC Unr))
+               ((Num (Int U I32)) (QualC Unr))))
+             (QualC Unr))
+            (SizeC 64))
+           (((Num (Int U I64)) (QualC Unr)) (SizeC 64)))))
+        (QualC Unr))))))
+   () ())
