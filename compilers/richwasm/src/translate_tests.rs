@@ -350,55 +350,6 @@ fn test_function_calls() {
     }
 }
 
-<<<<<<< Updated upstream
- 
- #[test]
- fn test_variant_0() {
-     let mut wasm_results = vec![wasmtime::Val::I64(-1)];
-     test_file(
-         "./tests/translation_tests/variants/0_test_endstate.rwasma",
-         &mut wasm_results,
-         &[5],
-     )
-     .unwrap();
- }
- 
- 
- #[test]
- fn test_variant_1() {
-     let mut wasm_results = vec![wasmtime::Val::I64(-1)];
-     test_file(
-         "./tests/translation_tests/variants/1_variant_simple.rwasma",
-         &mut wasm_results,
-         &[5],
-     )
-     .unwrap();
- }
- 
- #[test]
- fn test_variant_2() {
-     let mut wasm_results = vec![wasmtime::Val::I64(-1)];
-     test_file(
-         "./tests/translation_tests/variants/2_with_groups.rwasma",
-         &mut wasm_results,
-         &[0],
-     )
-     .unwrap();
- }
- 
- 
- #[test]
- fn test_exists() {
-     let mut wasm_results = vec![wasmtime::Val::I64(-1)];
-     test_file(
-         "./tests/translation_tests/exists/1_exist_simple.rwasma",
-         &mut wasm_results,
-         &[5],
-     )
-     .unwrap();
- }
- 
-=======
 #[test]
 fn test_variants() {
     let tests_dir_path = "./tests/translation_tests/variants";
@@ -430,4 +381,3 @@ fn test_exists() {
 }
 
 
->>>>>>> Stashed changes

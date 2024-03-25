@@ -155,6 +155,8 @@ test parse_tests::parse_types_tests ... ok
 test parse_tests::parse_instruction_tests ... ok
 ...
 ```
+Note that you have to build the ML, L3 compilers and RichWasm annotator before running the tests for the RichWasm compiler. This is because we have some end to end tests that need the entire compiler pipeline to be setup.
+
 
 ### Structure of Compilers Directory
 - `ml/`: Compiler from ML to RichWasm.
