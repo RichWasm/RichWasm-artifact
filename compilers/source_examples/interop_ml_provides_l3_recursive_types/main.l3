@@ -8,4 +8,3 @@ let * = (stash !*, join new !42 1) in
 let * = (stash !*, join new !90 1) in
 let * = (stash !*, join new !132 1) in
 ( - (get !*) ( + (get !*) (get !*)))
-

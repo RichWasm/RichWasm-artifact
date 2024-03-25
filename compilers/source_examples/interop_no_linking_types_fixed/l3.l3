@@ -1,0 +1,4 @@
+import ml.swap_pair : !(A. !I, !<!Int, !Int> -o !<!Int, !Int>) in
+export create_cell = A. fun * : !I, n : !Int. join new n 1 in
+let <a, b> = (swap_pair !*, !<!1, !2>) in
+0

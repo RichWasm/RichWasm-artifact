@@ -121,7 +121,8 @@ let%expect_test _ =
              (QualC Lin)))
            (QualC Lin)))))
        (Import ml get_stashed))
-      (Fun () (() (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))))
+      (Fun (main)
+       (() (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))))
        ((SizeC 64) (SizeC 64) (SizeC 32) (SizeC 32) (SizeC 32))
        ((ICoderefI 0) (IQualify (QualC Lin)) (ISet_local 0) (ICoderefI 1)
         (IQualify (QualC Lin)) (ISet_local 1)
@@ -221,7 +222,8 @@ let%expect_test _ =
              (QualC Lin)))
            (QualC Lin)))))
        (Import ml get_stashed))
-      (Fun () (() (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))))
+      (Fun (main)
+       (() (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))))
        ((SizeC 64) (SizeC 64) (SizeC 32))
        ((ICoderefI 0) (IQualify (QualC Lin)) (ISet_local 0) (ICoderefI 1)
         (IQualify (QualC Lin)) (ISet_local 1) (IVal Unit)
@@ -281,7 +283,7 @@ let%expect_test _ =
   test prog3;
   [%expect
     {|
-    (((Fun ()
+    (((Fun (main)
        (()
         (()
          (((Prod
@@ -491,7 +493,7 @@ let%expect_test _ =
           (ISet_local 10) (IVal Unit) (ISet_local 9) (IVal Unit) (ISet_local 8)
           (IVal Unit) (ISet_local 7) (IVal Unit) (ISet_local 4) (IVal Unit)
           (ISet_local 3) (IVal Unit) (ISet_local 2)))))
-      (Fun () (() (() ((Unit (QualC Lin))))) ()
+      (Fun (main) (() (() ((Unit (QualC Lin))))) ()
        ((IVal Unit) (IQualify (QualC Lin)))))
      () (0 1 2)) |}]
 ;;

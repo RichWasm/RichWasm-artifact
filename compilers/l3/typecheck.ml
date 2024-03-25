@@ -221,7 +221,7 @@ let rec typecheck_e (e : Debruijned.Expr.t) ~gamma ~delta : Typechecked.Expr.t O
       let%bind bind = h bind in
       let%bind vars_and_typs =
         match e_type bind with
-        | Info (_, Prod typs) when List.length typs = List.length vars ->
+        | Info (_, Prod typs) | Info (_, Bang (Info (_, Prod typs))) when List.length typs = List.length vars ->
           return (List.zip_exn vars typs)
         | _ ->
           Or_error.error_s

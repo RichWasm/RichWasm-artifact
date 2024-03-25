@@ -34,7 +34,7 @@ module Instruction = struct
     | INe of NumInstr.t
     | IUnreachable
     | INop
-    | IDrop
+    | IDrop of Type.pt (* DIFFERENT *)
     | ISelect
     | IBlock of Type.at * LocalEffect.t * t list
     | ILoop of Type.at * t list
@@ -60,12 +60,12 @@ module Instruction = struct
     | ICapJoin
     | IRefDemote
     | IMemPack of Loc.t
-    | IMemUnpack of Type.at * LocalEffect.t * t list
+    | IMemUnpack of Type.at * LocalEffect.t * t list * Type.t (* DIFFERENT *)
     | IStructMalloc of Size.t list * Qual.t * Type.t list (* DIFFERENT *)
     | IStructFree of Type.t list (* DIFFERENT *)
     | IStructGet of int * Type.t list (* DIFFERENT *)
-    | IStructSet of int * Type.t list (* DIFFERENT *)
-    | IStructSwap of int * Type.t list (* DIFFERENT *)
+    | IStructSet of int * Type.t list * Type.pt (* DIFFERENT *)
+    | IStructSwap of int * Type.t list * Type.pt (* DIFFERENT *)
     | IVariantMalloc of int * Type.t list * Qual.t
     | IVariantCase of
         Qual.t * Type.t list * Type.at * LocalEffect.t * t list list (* DIFFERENT *)

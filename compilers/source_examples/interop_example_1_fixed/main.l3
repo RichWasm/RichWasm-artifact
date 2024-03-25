@@ -1,4 +1,5 @@
 import stash.stash : !(A. !I, E l. Ref l !Int 1 -o !I ) in
 import stash.get_stashed : !(A. !I -o E l. Ref l !Int 1) in
 let * = (stash !*, join new !42 1) in
-free split (get_stashed !*)
+let {_, _} = free split (get_stashed !*) in
+0

@@ -318,6 +318,20 @@ let compile_expr e alpha_sizes local_env : Rich_wasm.Instruction.t list * Local_
       let local_env = Local_env.bind (Const 64) local_env in
       let local = Local_env.find_exn 0 local_env in
       let local_env = Local_env.unbind_exn local_env in
+      let drop_instructions, local_env =
+        let typ_size = type_size typ alpha_sizes in
+        let local_env = Local_env.bind typ_size local_env in
+        let local = Local_env.find_exn 0 local_env in
+        let local_env = Local_env.unbind_exn local_env in
+        let (Info (_, (ret_qual, _))) = typ in
+        ( [ ISet_local local
+          ; IDrop
+          ; IGet_local (local, compile_qual ret_qual)
+          ; IVal Unit
+          ; ISet_local local
+          ]
+        , local_env )
+      in
       ( f
         @ [ IMemUnpack
               ( ([], [ compile_type typ ])
@@ -334,7 +348,8 @@ let compile_expr e alpha_sizes local_env : Rich_wasm.Instruction.t list * Local_
                         ; IVal Unit
                         ; ISet_local local
                         ] )
-                ] )
+                ]
+                @ drop_instructions )
           ]
       , local_env
       , le_f @ le_args )
@@ -472,13 +487,31 @@ let compile_expr e alpha_sizes local_env : Rich_wasm.Instruction.t list * Local_
             ( (local_env, le @ le_t)
             , (ISet_local local :: t) @ [ IVal Unit; ISet_local local ] ))
       in
+      let drop_instructions, local_env =
+        match variant_qual with
+        | Lin -> [], local_env
+        | Unr ->
+          let typ_size = type_size typ alpha_sizes in
+          let local_env = Local_env.bind typ_size local_env in
+          let local = Local_env.find_exn 0 local_env in
+          let local_env = Local_env.unbind_exn local_env in
+          let (Info (_, (ret_qual, _))) = typ in
+          ( [ ISet_local local
+            ; IDrop
+            ; IGet_local (local, compile_qual ret_qual)
+            ; IVal Unit
+            ; ISet_local local
+            ]
+          , local_env )
+      in
       let typ = compile_type typ in
       let at = [], [ typ ] in
       ( bind
         @ [ IMemUnpack
               ( at
               , le_body
-              , [ IVariantCase (compile_qual variant_qual, at, le_body, body) ] )
+              , [ IVariantCase (compile_qual variant_qual, at, le_body, body) ]
+                @ drop_instructions )
           ]
       , local_env
       , le_bind @ le_body )
@@ -724,7 +757,7 @@ let codegen (m : Annotated.Module.t) ~source_printer : Rich_wasm.Module.t Or_err
       let foralls = List.map ~f:compile_abstraction foralls in
       return
         ( [ Instruction.Fun
-              ([], (foralls, (args, [ ret ])), sizes, pattern_instructions @ body)
+              ([ "main" ], (foralls, (args, [ ret ])), sizes, pattern_instructions @ body)
           ]
         , [] )
   in

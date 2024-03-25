@@ -609,11 +609,11 @@ end = struct
          let%bind es, typ = has_type_instruction s c f l es stack in
          return (Ii.INop :: es, typ)
        | IDrop ->
-         let%bind stack =
+         let%bind stack, ptyp =
            match stack with
            | (ptyp, unr) :: rest ->
              if Qual_leq.check f unr (QualC Unr)
-             then return rest
+             then return (rest, ptyp)
              else
                error_s
                  [%message
@@ -623,7 +623,7 @@ end = struct
            | [] -> error_s [%message "Drop requires non-empty stack"]
          in
          let%bind es, typ = has_type_instruction s c f l es stack in
-         return (Ii.IDrop :: es, typ)
+         return (Ii.IDrop ptyp :: es, typ)
        | ISelect ->
          let%bind stack =
            match stack with
@@ -1557,7 +1557,7 @@ end = struct
          in
          let%bind es, typ = has_type_instruction s c f l' es stack in
          return
-           (Ii.IMemUnpack ((input_types, output_types), tl, inner_annotated) :: es, typ)
+           (Ii.IMemUnpack ((List.rev input_types, List.rev output_types), tl, inner_annotated, t_rho) :: es, typ)
        | IStructMalloc (szs, q) ->
          let%bind taus_szs, stack =
            let length = List.length szs in
@@ -1683,6 +1683,7 @@ end = struct
                   struct on the top of the stack"
                    ~actual_stack:(stack : Type.t list)]
          in
+         let pretype_to_annotate, _ = typ in
          let%bind old_typ, sz =
            match List.nth taus_szs n with
            | Some typ_sz -> return typ_sz
@@ -1749,7 +1750,7 @@ end = struct
              ((Ref (W, loc, Struct taus_szs'), q_ref) :: stack)
          in
          let type_annotations = List.map ~f:fst taus_szs in
-         return (Ii.IStructSet (n, type_annotations) :: es, typ)
+         return (Ii.IStructSet (n, type_annotations, pretype_to_annotate) :: es, typ)
        | IStructSwap n ->
          let%bind stack, typ, loc, taus_szs, q_ref =
            match stack with
@@ -1762,6 +1763,7 @@ end = struct
                   a struct on the top of the stack"
                    ~actual_stack:(stack : Type.t list)]
          in
+         let pretype_to_annotate, _ = typ in
          let%bind old_typ, sz =
            match List.nth taus_szs n with
            | Some typ_sz -> return typ_sz
@@ -1819,7 +1821,7 @@ end = struct
              (old_typ :: (Ref (W, loc, Struct taus_szs'), q_ref) :: stack)
          in
          let type_annotations = List.map ~f:fst taus_szs in
-         return (Ii.IStructSwap (n, type_annotations) :: es, typ)
+         return (Ii.IStructSwap (n, type_annotations, pretype_to_annotate) :: es, typ)
        | IVariantMalloc (n, ts, q) ->
          let%bind t =
            match List.nth ts n with
@@ -1895,12 +1897,12 @@ end = struct
                 "BUG: qualifier was determined to be both linear and unrestricted"]
           | true, false ->
             let%bind l' = Local_ctx.apply_local_effect tl l in
-            let%bind stack, ts, qv =
+            let%bind stack, ts, qv, ref_typ_to_return =
               match stack with
               | [] -> Or_error.error_s [%message "variant.case requires non-empty stack"]
               | t :: stack ->
                 (match t with
-                 | Ref (_, _, Variant ts), qv -> return (stack, ts, qv)
+                 | Ref (_, _, Variant ts), qv -> return (stack, ts, qv, t)
                  | _ ->
                    Or_error.error_s
                      [%message
@@ -1974,7 +1976,7 @@ end = struct
                   return inner_annotated)
                 |> Or_error.all
               in
-              return (output_types @ framed_out, inner_annotated)
+              return (output_types @ [ ref_typ_to_return ] @ framed_out, inner_annotated)
             in
             let%bind es, typ = has_type_instruction s c f l' es stack in
             return
@@ -2265,13 +2267,13 @@ end = struct
               List.map ~f:(fun (t, sz) -> Substitution.Type.incr_unbound_in_t 1 t, sz)
             in
             let%bind l' = Local_ctx.apply_local_effect tl l in
-            let%bind stack, sz_bound, q_bound, inner_t, qv =
+            let%bind stack, sz_bound, q_bound, inner_t, qv, ref_typ_to_return =
               match stack with
               | [] -> Or_error.error_s [%message "exist.unpack requires non-empty stack"]
               | t :: stack ->
                 (match t with
                  | Ref (_, _, Ex (sz_bound, q_bound, inner_t)), qv ->
-                   return (stack, sz_bound, q_bound, inner_t, qv)
+                   return (stack, sz_bound, q_bound, inner_t, qv, t)
                  | _ ->
                    Or_error.error_s
                      [%message
@@ -2335,7 +2337,7 @@ end = struct
                   in
                   return ()
               in
-              return (output_types @ framed_out, inner_annotated)
+              return (output_types @ [ ref_typ_to_return ] @ framed_out, inner_annotated)
             in
             let%bind es, typ = has_type_instruction s c f l' es stack in
             return

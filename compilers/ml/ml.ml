@@ -88,7 +88,8 @@ let%expect_test _ =
        ()
        ((IGet_local 2 (QualC Unr)) (IGet_local 1 (QualC Unr))
         (INe (Ib I32 Iadd))))
-      (Fun () (() (() (((Num (Int S I32)) (QualC Unr))))) ((SizeC 64))
+      (Fun (main) (() (() (((Num (Int S I32)) (QualC Unr)))))
+       ((SizeC 64) (SizeC 32))
        ((IVal Unit) (ICoderefI 0) (IInst ()) (IGroup 2 (QualC Unr))
         (IExistPack Unit
          (Ex (QualC Unr) (SizeC 64)
@@ -106,7 +107,9 @@ let%expect_test _ =
          ((IExistUnpack (QualC Unr) (() (((Num (Int S I32)) (QualC Unr)))) ()
            (IUngroup (ISet_local 0) (IVal (Num (Int S I32) (Second 0)))
             (IVal (Num (Int S I32) (Second 1))) (IGet_local 0 (QualC Unr))
-            (IInst ()) ICall_indirect (IVal Unit) (ISet_local 0))))))))
+            (IInst ()) ICall_indirect (IVal Unit) (ISet_local 0)))
+          (ISet_local 1) IDrop (IGet_local 1 (QualC Unr)) (IVal Unit)
+          (ISet_local 1))))))
      () (0 1)) |}]
 ;;
 
@@ -135,7 +138,7 @@ let%expect_test _ =
   test_compilation prog_1_and_a_half;
   [%expect
     {|
-    (((Fun ()
+    (((Fun (main)
        (()
         (()
          (((Prod
@@ -239,7 +242,7 @@ let%expect_test _ =
   test_compilation prog4;
   [%expect
     {|
-    (((Fun ()
+    (((Fun (main)
        (()
         (()
          (((Prod
@@ -404,7 +407,7 @@ let%expect_test _ =
              ((IUnreachable) ((ISet_local 2))))))
           IDrop))
         (IGet_local 2 (QualC Lin)) (IVal Unit) (ISet_local 2)))
-      (Fun () (() (() ((Unit (QualC Unr))))) () ((IVal Unit))))
+      (Fun (main) (() (() ((Unit (QualC Unr))))) () ((IVal Unit))))
      ((GlobEx ()
        (ExLoc
         ((Ref W (LocV 0)
@@ -466,7 +469,7 @@ let%expect_test _ =
        ()
        ((IGet_local 1 (QualC Lin)) (IVal (Num (Int S I32) (Second 0)))
         (IGroup 2 (QualC Lin))))
-      (Fun ()
+      (Fun (main)
        (()
         (()
          (((ExLoc
@@ -532,7 +535,7 @@ let%expect_test _ =
   test_compilation prog8;
   [%expect
     {|
-    (((Fun ()
+    (((Fun (main)
        (()
         (()
          (((ExLoc
@@ -635,7 +638,7 @@ let%expect_test _ =
              ((IUnreachable) ((ISet_local 2))))))
           IDrop))
         (IGet_local 2 (QualC Lin)) (IVal Unit) (ISet_local 2)))
-      (Fun () (() (() ((Unit (QualC Unr))))) () ((IVal Unit))))
+      (Fun (main) (() (() ((Unit (QualC Unr))))) () ((IVal Unit))))
      ((GlobEx ()
        (ExLoc
         ((Ref W (LocV 0)
@@ -694,8 +697,8 @@ let%expect_test _ =
           (IVal Unit) (ISet_local 1)))
         IUngroup (ISet_local 2) (IGet_local 2 (QualC Unr)) (IVal Unit)
         (ISet_local 2)))
-      (Fun () (() (() (((Num (Int S I32)) (QualC Unr)))))
-       ((SizeC 32) (SizeC 64) (SizeC 64))
+      (Fun (main) (() (() (((Num (Int S I32)) (QualC Unr)))))
+       ((SizeC 32) (SizeC 64) (SizeC 64) (SizeC 32))
        ((IVal (Num (Int S I32) (Second 3))) (ISet_local 0)
         (IGet_local 0 (QualC Unr)) (IGroup 1 (QualC Unr))
         (IStructMalloc ((SizeP (SizeC 0) (SizeC 32))) (QualC Unr)) (ICoderefI 0)
@@ -719,7 +722,9 @@ let%expect_test _ =
         (IMemUnpack (() (((Num (Int S I32)) (QualC Unr)))) ()
          ((IExistUnpack (QualC Unr) (() (((Num (Int S I32)) (QualC Unr)))) ()
            (IUngroup (ISet_local 2) (IGet_local 2 (QualC Unr)) (IInst ())
-            ICall_indirect (IVal Unit) (ISet_local 2)))))
+            ICall_indirect (IVal Unit) (ISet_local 2)))
+          (ISet_local 3) IDrop (IGet_local 3 (QualC Unr)) (IVal Unit)
+          (ISet_local 3)))
         (IVal Unit) (ISet_local 1) (IVal Unit) (ISet_local 0))))
      () (0 1)) |}]
 ;;

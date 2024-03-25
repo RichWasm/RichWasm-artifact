@@ -1,3 +1,4 @@
-import ml.id_no_lin : !(A. !I, E l. Ref l !Int 1 -o E l. Ref l ! Int 1) in
-export id_pair_lin = A. fun * : !I, p : <!Int, !Int>. p in
+import ml.swap_pair : !(A. !I, <!Int, !Int> -o <!Int, !Int>) in
+export create_cell = A. fun * : !I, n : !Int. new n 1 in
+let <a, b> = (swap_pair !*, <!1, !2>) in
 *

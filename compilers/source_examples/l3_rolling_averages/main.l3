@@ -8,4 +8,4 @@ let <r> = <(add_sample r, !20)> in
 let <r> = <(add_sample r, !9)> in
 let <r, avg> = (average r) in
 let * = (free_ r) in
-avg
+( - avg 10 )

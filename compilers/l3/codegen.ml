@@ -144,7 +144,8 @@ let compile_expr e local_env =
       let bind, local_env, le_bind = h bind local_env in
       let typs =
         match (bind_typ : Typechecked.Type.t) with
-        | Info (_, Prod typs) when List.length typs = List.length vars -> typs
+        | (Info (_, Prod typs) | Info (_, Bang (Info (_, Prod typs))))
+          when List.length typs = List.length vars -> typs
         | _ ->
           raise_s
             [%message
@@ -425,7 +426,7 @@ let codegen (m : Typechecked.Module.t) ~source_printer:_ : Rich_wasm.Module.t Or
       let ret = compile_type (e_type e) in
       let body, local_env = compile_expr e (Local_env.create ~num_arg_locals:0) in
       let sizes = local_env |> Local_env.to_list in
-      return [ Instruction.Fun ([], ([], ([], [ ret ])), sizes, body) ]
+      return [ Instruction.Fun ([ "main" ], ([], ([], [ ret ])), sizes, body) ]
   in
   let%map funs = h m in
   funs, [], List.init ~f:Fn.id (List.length funs)

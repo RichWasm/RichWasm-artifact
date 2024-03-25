@@ -252,7 +252,7 @@ let%expect_test _ =
     {|
     ((module
       (((Fun () (() (() (((Num (Int U I64)) (QualC Unr))))) ()
-         ((IVal (Num (Int U I64) (First 40))) (IVal Unit) IDrop)))
+         ((IVal (Num (Int U I64) (First 40))) (IVal Unit) (IDrop Unit))))
        () (0)))) |}]
 ;;
 
@@ -388,12 +388,7 @@ module Example_2 = struct
 
   let contents : Type.t =
     ( ExLoc
-        ( Prod
-            [ ( Cap (W, LocV 0, Struct [ (Num (Int (U, I32)), QualC Unr), SizeC 32 ])
-              , QualC Lin )
-            ; Ptr (LocV 0), QualC Unr
-            ]
-        , QualC Lin )
+        (Ref (W, LocV 0, Struct [ (Num (Int (U, I32)), QualC Unr), SizeC 32 ]), QualC Lin)
     , QualC Lin )
   ;;
 
@@ -418,10 +413,6 @@ module Example_2 = struct
       , []
       , [ IVal (Num (Int (U, I32), Second (Int32.of_int_exn 0)))
         ; IStructMalloc ([ SizeC 32 ], QualC Lin)
-        ; IMemUnpack
-            ( ([], [ contents ])
-            , []
-            , [ IRefSplit; IGroup (2, QualC Lin); IMemPack (LocV 0) ] )
         ; IGet_local (0, QualC Unr)
         ; IStructMalloc ([ SizeC 64; SizeC 64 ], QualC Lin)
         ] )
@@ -457,15 +448,11 @@ module Example_2 = struct
                     ; IMemUnpack
                         ( ([], [ contents ])
                         , []
-                        , [ IUngroup
-                          ; IRefJoin
-                          ; IStructGet 0
+                        , [ IStructGet 0
                           ; IGet_local (1, QualC Unr)
                           ; INe (Ib (I32, Iadd))
                           ; ITee_local 1
                           ; IStructSet 0
-                          ; IRefSplit
-                          ; IGroup (2, QualC Lin)
                           ; IMemPack (LocV 0)
                           ] )
                     ; IStructSwap 0
@@ -478,7 +465,7 @@ module Example_2 = struct
                   , []
                   , [ IVal Unit
                     ; IStructSwap 0
-                    ; IMemUnpack (([], []), [], [ IUngroup; IRefJoin; IStructFree ])
+                    ; IMemUnpack (([], []), [], [ IStructFree ])
                     ; IStructFree
                     ] )
               ; IDrop
@@ -533,11 +520,8 @@ module Example_2 = struct
                 ((Ref W (LocV 0)
                   (Struct
                    ((((ExLoc
-                       ((Prod
-                         (((Cap W (LocV 0)
-                            (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                           (QualC Lin))
-                          ((Ptr (LocV 0)) (QualC Unr))))
+                       ((Ref W (LocV 0)
+                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                         (QualC Lin)))
                       (QualC Lin))
                      (SizeC 64))
@@ -553,17 +537,6 @@ module Example_2 = struct
            ((IVal (Num (Int U I32) (Second 0)))
             (IStructMalloc ((SizeC 32)) (QualC Lin)
              (((Num (Int U I32)) (QualC Unr))))
-            (IMemUnpack
-             (()
-              (((ExLoc
-                 ((Prod
-                   (((Cap W (LocV 0)
-                      (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                     (QualC Lin))
-                    ((Ptr (LocV 0)) (QualC Unr))))
-                  (QualC Lin)))
-                (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
             (IGet_local 0 (QualC Unr)
              (ExLoc
               ((Ref R (LocV 0)
@@ -571,11 +544,8 @@ module Example_2 = struct
                (QualC Unr))))
             (IStructMalloc ((SizeC 64) (SizeC 64)) (QualC Lin)
              (((ExLoc
-                ((Prod
-                  (((Cap W (LocV 0)
-                     (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                    (QualC Lin))
-                   ((Ptr (LocV 0)) (QualC Unr))))
+                ((Ref W (LocV 0)
+                  (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                  (QualC Lin)))
                (QualC Lin))
               ((ExLoc
@@ -592,12 +562,9 @@ module Example_2 = struct
                        ((Ref W (LocV 0)
                          (Struct
                           ((((ExLoc
-                              ((Prod
-                                (((Cap W (LocV 0)
-                                   (Struct
-                                    ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                                  (QualC Lin))
-                                 ((Ptr (LocV 0)) (QualC Unr))))
+                              ((Ref W (LocV 0)
+                                (Struct
+                                 ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                                (QualC Lin)))
                              (QualC Lin))
                             (SizeC 64))
@@ -623,12 +590,9 @@ module Example_2 = struct
                      ((Ref W (LocV 0)
                        (Struct
                         ((((ExLoc
-                            ((Prod
-                              (((Cap W (LocV 0)
-                                 (Struct
-                                  ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                                (QualC Lin))
-                               ((Ptr (LocV 0)) (QualC Unr))))
+                            ((Ref W (LocV 0)
+                              (Struct
+                               ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                              (QualC Lin)))
                            (QualC Lin))
                           (SizeC 64))
@@ -654,19 +618,18 @@ module Example_2 = struct
                      (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                     (QualC Unr)))
                   (QualC Unr))))
-               () (IRefDemote (IMemPack (LocV 1))))
+               () (IRefDemote (IMemPack (LocV 1)))
+               ((Ref W (LocV 0)
+                 (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                (QualC Unr)))
               (ICall 0 ())
               (IStructSwap 0
                (((ExLoc
                   ((Ref W (LocV 0)
                     (Struct
                      ((((ExLoc
-                         ((Prod
-                           (((Cap W (LocV 0)
-                              (Struct
-                               ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                             (QualC Lin))
-                            ((Ptr (LocV 0)) (QualC Unr))))
+                         ((Ref W (LocV 0)
+                           (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                           (QualC Lin)))
                         (QualC Lin))
                        (SizeC 64))
@@ -677,6 +640,22 @@ module Example_2 = struct
                         (QualC Unr))
                        (SizeC 64)))))
                    (QualC Lin)))
+                 (QualC Lin)))
+               (ExLoc
+                ((Ref W (LocV 0)
+                  (Struct
+                   ((((ExLoc
+                       ((Ref W (LocV 0)
+                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                        (QualC Lin)))
+                      (QualC Lin))
+                     (SizeC 64))
+                    (((ExLoc
+                       ((Ref R (LocV 0)
+                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                        (QualC Unr)))
+                      (QualC Unr))
+                     (SizeC 64)))))
                  (QualC Lin))))
               (IMemUnpack
                (()
@@ -684,12 +663,8 @@ module Example_2 = struct
                    ((Ref W (LocV 0)
                      (Struct
                       ((((ExLoc
-                          ((Prod
-                            (((Cap W (LocV 0)
-                               (Struct
-                                ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                              (QualC Lin))
-                             ((Ptr (LocV 0)) (QualC Unr))))
+                          ((Ref W (LocV 0)
+                            (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                            (QualC Lin)))
                          (QualC Lin))
                         (SizeC 64))
@@ -704,11 +679,8 @@ module Example_2 = struct
                ((1 ((Num (Int U I32)) (QualC Unr))))
                ((IStructGet 1
                  (((ExLoc
-                    ((Prod
-                      (((Cap W (LocV 0)
-                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                        (QualC Lin))
-                       ((Ptr (LocV 0)) (QualC Unr))))
+                    ((Ref W (LocV 0)
+                      (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Lin)))
                    (QualC Lin))
                   ((ExLoc
@@ -718,58 +690,77 @@ module Example_2 = struct
                    (QualC Unr))))
                 (IMemUnpack (() ()) ((1 ((Num (Int U I32)) (QualC Unr))))
                  ((IStructGet 0 (((Num (Int U I32)) (QualC Unr))))
-                  (ISet_local 1 ((Num (Int U I32)) (QualC Unr))) IDrop))
+                  (ISet_local 1 ((Num (Int U I32)) (QualC Unr)))
+                  (IDrop
+                   (Ref R (LocV 0)
+                    (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))))
+                 ((Ref R (LocV 0)
+                   (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                  (QualC Unr)))
                 (IVal Unit)
                 (IStructSwap 0
                  (((ExLoc
-                    ((Prod
-                      (((Cap W (LocV 0)
-                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                        (QualC Lin))
-                       ((Ptr (LocV 0)) (QualC Unr))))
+                    ((Ref W (LocV 0)
+                      (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Lin)))
                    (QualC Lin))
                   ((ExLoc
                     ((Ref R (LocV 0)
                       (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Unr)))
-                   (QualC Unr))))
+                   (QualC Unr)))
+                 Unit)
                 (IMemUnpack
                  (()
                   (((ExLoc
-                     ((Prod
-                       (((Cap W (LocV 0)
-                          (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                         (QualC Lin))
-                        ((Ptr (LocV 0)) (QualC Unr))))
+                     ((Ref W (LocV 0)
+                       (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                       (QualC Lin)))
                     (QualC Lin))))
                  ()
-                 (IUngroup IRefJoin
-                  (IStructGet 0 (((Num (Int U I32)) (QualC Unr))))
+                 ((IStructGet 0 (((Num (Int U I32)) (QualC Unr))))
                   (IGet_local 1 (QualC Unr) (Num (Int U I32))) (INe (Ib I32 Iadd))
                   (ITee_local 1 ((Num (Int U I32)) (QualC Unr)))
-                  (IStructSet 0 (((Num (Int U I32)) (QualC Unr)))) IRefSplit
-                  (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+                  (IStructSet 0 (((Num (Int U I32)) (QualC Unr)))
+                   (Num (Int U I32)))
+                  (IMemPack (LocV 1)))
+                 ((Ref W (LocV 0)
+                   (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                  (QualC Lin)))
                 (IStructSwap 0
                  ((Unit (QualC Unr))
                   ((ExLoc
                     ((Ref R (LocV 0)
                       (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Unr)))
-                   (QualC Unr))))
-                IDrop (IMemPack (LocV 1))))
+                   (QualC Unr)))
+                 (ExLoc
+                  ((Ref W (LocV 0)
+                    (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                   (QualC Lin))))
+                (IDrop Unit) (IMemPack (LocV 1)))
+               ((Ref W (LocV 0)
+                 (Struct
+                  ((((ExLoc
+                      ((Ref W (LocV 0)
+                        (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                       (QualC Lin)))
+                     (QualC Lin))
+                    (SizeC 64))
+                   (((ExLoc
+                      ((Ref R (LocV 0)
+                        (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                       (QualC Unr)))
+                     (QualC Unr))
+                    (SizeC 64)))))
+                (QualC Lin)))
               (IStructSwap 0
                (((ExLoc
                   ((Ref W (LocV 0)
                     (Struct
                      ((((ExLoc
-                         ((Prod
-                           (((Cap W (LocV 0)
-                              (Struct
-                               ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                             (QualC Lin))
-                            ((Ptr (LocV 0)) (QualC Unr))))
+                         ((Ref W (LocV 0)
+                           (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                           (QualC Lin)))
                         (QualC Lin))
                        (SizeC 64))
@@ -780,34 +771,110 @@ module Example_2 = struct
                         (QualC Unr))
                        (SizeC 64)))))
                    (QualC Lin)))
+                 (QualC Lin)))
+               (ExLoc
+                ((Ref W (LocV 0)
+                  (Struct
+                   ((((ExLoc
+                       ((Ref W (LocV 0)
+                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                        (QualC Lin)))
+                      (QualC Lin))
+                     (SizeC 64))
+                    (((ExLoc
+                       ((Ref R (LocV 0)
+                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                        (QualC Unr)))
+                      (QualC Unr))
+                     (SizeC 64)))))
                  (QualC Lin))))
               (IMemUnpack (() ()) ()
                ((IVal Unit)
                 (IStructSwap 0
                  (((ExLoc
-                    ((Prod
-                      (((Cap W (LocV 0)
-                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                        (QualC Lin))
-                       ((Ptr (LocV 0)) (QualC Unr))))
+                    ((Ref W (LocV 0)
+                      (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Lin)))
                    (QualC Lin))
                   ((ExLoc
                     ((Ref R (LocV 0)
                       (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Unr)))
-                   (QualC Unr))))
+                   (QualC Unr)))
+                 Unit)
                 (IMemUnpack (() ()) ()
-                 (IUngroup IRefJoin
-                  (IStructFree (((Num (Int U I32)) (QualC Unr))))))
+                 ((IStructFree (((Num (Int U I32)) (QualC Unr)))))
+                 ((Ref W (LocV 0)
+                   (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                  (QualC Lin)))
                 (IStructFree
                  ((Unit (QualC Unr))
                   ((ExLoc
                     ((Ref R (LocV 0)
                       (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Unr)))
-                   (QualC Unr))))))
-              IDrop))
+                   (QualC Unr)))))
+               ((Ref W (LocV 0)
+                 (Struct
+                  ((((ExLoc
+                      ((Ref W (LocV 0)
+                        (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                       (QualC Lin)))
+                     (QualC Lin))
+                    (SizeC 64))
+                   (((ExLoc
+                      ((Ref R (LocV 0)
+                        (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                       (QualC Unr)))
+                     (QualC Unr))
+                    (SizeC 64)))))
+                (QualC Lin)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct
+                 ((((ExLoc
+                     ((Ref W (LocV 0)
+                       (Struct
+                        ((((ExLoc
+                            ((Ref W (LocV 0)
+                              (Struct
+                               ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                             (QualC Lin)))
+                           (QualC Lin))
+                          (SizeC 64))
+                         (((ExLoc
+                            ((Ref R (LocV 0)
+                              (Struct
+                               ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                             (QualC Unr)))
+                           (QualC Unr))
+                          (SizeC 64)))))
+                      (QualC Lin)))
+                    (QualC Lin))
+                   (SizeC 64)))))))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((ExLoc
+                    ((Ref W (LocV 0)
+                      (Struct
+                       ((((ExLoc
+                           ((Ref W (LocV 0)
+                             (Struct
+                              ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                            (QualC Lin)))
+                          (QualC Lin))
+                         (SizeC 64))
+                        (((ExLoc
+                           ((Ref R (LocV 0)
+                             (Struct
+                              ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
+                            (QualC Unr)))
+                          (QualC Unr))
+                         (SizeC 64)))))
+                     (QualC Lin)))
+                   (QualC Lin))
+                  (SizeC 64)))))
+              (QualC Unr)))
             (IGet_local 1 (QualC Unr) (Num (Int U I32)))))
           (Fun ()
            (()
@@ -841,11 +908,8 @@ module Example_2 = struct
                 ((Ref W (LocV 0)
                   (Struct
                    ((((ExLoc
-                       ((Prod
-                         (((Cap W (LocV 0)
-                            (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                           (QualC Lin))
-                          ((Ptr (LocV 0)) (QualC Unr))))
+                       ((Ref W (LocV 0)
+                         (Struct ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                         (QualC Lin)))
                       (QualC Lin))
                      (SizeC 64))
@@ -866,12 +930,9 @@ module Example_2 = struct
                      ((Ref W (LocV 0)
                        (Struct
                         ((((ExLoc
-                            ((Prod
-                              (((Cap W (LocV 0)
-                                 (Struct
-                                  ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
-                                (QualC Lin))
-                               ((Ptr (LocV 0)) (QualC Unr))))
+                            ((Ref W (LocV 0)
+                              (Struct
+                               ((((Num (Int U I32)) (QualC Unr)) (SizeC 32)))))
                              (QualC Lin)))
                            (QualC Lin))
                           (SizeC 64))
@@ -1101,7 +1162,10 @@ module Example_1 = struct
                     ((Ptr (LocV 0)) (QualC Unr))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+              (QualC Lin)))
             (IMemUnpack
              (()
               (((ExLoc
@@ -1109,7 +1173,13 @@ module Example_1 = struct
                    (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IUngroup IRefJoin (IMemPack (LocV 1))))
+             () (IUngroup IRefJoin (IMemPack (LocV 1)))
+             ((Prod
+               (((Cap W (LocV 0)
+                  (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                 (QualC Lin))
+                ((Ptr (LocV 0)) (QualC Unr))))
+              (QualC Lin)))
             (IGet_local 0 (QualC Lin)
              (Coderef
               (()
@@ -1144,16 +1214,25 @@ module Example_1 = struct
                     ((Ptr (LocV 0)) (QualC Unr))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+              (QualC Lin)))
             (IMemUnpack
              (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))) ()
              (IUngroup IRefJoin (IVal Unit)
-              (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))))
+              (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))) Unit)
               (ISet_local 2 ((Num (Int S I32)) (QualC Unr)))
               (IStructFree ((Unit (QualC Unr))))
               (IGet_local 2 (QualC Unr) (Num (Int S I32))) (IVal Unit)
               (ISet_local 2 (Unit (QualC Unr))) (IMemPack (LocV 1))
-              (IQualify (QualC Lin))))
+              (IQualify (QualC Lin)))
+             ((Prod
+               (((Cap W (LocV 0)
+                  (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                 (QualC Lin))
+                ((Ptr (LocV 0)) (QualC Unr))))
+              (QualC Lin)))
             (IMemUnpack
              (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin))))
              ((1 (Unit (QualC Unr))))
@@ -1184,17 +1263,27 @@ module Example_1 = struct
                       ((Ptr (LocV 0)) (QualC Unr))))
                     (QualC Lin)))
                   (QualC Lin))))
-               () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+               () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+               ((Ref W (LocV 0)
+                 (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                (QualC Lin)))
               (IMemUnpack
                (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))) ()
                (IUngroup IRefJoin (IVal Unit)
-                (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))))
+                (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))) Unit)
                 (ISet_local 4 ((Num (Int S I32)) (QualC Unr)))
                 (IStructFree ((Unit (QualC Unr))))
                 (IGet_local 4 (QualC Unr) (Num (Int S I32))) (IVal Unit)
                 (ISet_local 4 (Unit (QualC Unr))) (IMemPack (LocV 1))
-                (IQualify (QualC Lin))))
-              (IVal Unit) (ISet_local 3 (Unit (QualC Unr)))))
+                (IQualify (QualC Lin)))
+               ((Prod
+                 (((Cap W (LocV 0)
+                    (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                   (QualC Lin))
+                  ((Ptr (LocV 0)) (QualC Unr))))
+                (QualC Lin)))
+              (IVal Unit) (ISet_local 3 (Unit (QualC Unr))))
+             ((Num (Int S I32)) (QualC Unr)))
             (IVal Unit) (ISet_local 1 (Unit (QualC Unr))) (IVal Unit)
             (ISet_local 0 (Unit (QualC Unr))))))
          () (0 1 2)))
@@ -1388,7 +1477,10 @@ module Example_1 = struct
                       ((Ptr (LocV 0)) (QualC Unr))))
                     (QualC Lin)))
                   (QualC Lin))))
-               () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+               () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+               ((Ref W (LocV 0)
+                 (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                (QualC Lin)))
               (IMemUnpack
                (()
                 (((ExLoc
@@ -1396,7 +1488,13 @@ module Example_1 = struct
                      (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
                     (QualC Lin)))
                   (QualC Lin))))
-               () (IUngroup IRefJoin (IMemPack (LocV 1))))
+               () (IUngroup IRefJoin (IMemPack (LocV 1)))
+               ((Prod
+                 (((Cap W (LocV 0)
+                    (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                   (QualC Lin))
+                  ((Ptr (LocV 0)) (QualC Unr))))
+                (QualC Lin)))
               (IGet_local 0 (QualC Lin)
                (Coderef
                 (()
@@ -1413,7 +1511,7 @@ module Example_1 = struct
                     (QualC Lin)))
                   (QualC Lin)))
                 ((Unit (QualC Unr)))))
-              IDrop (IVal Unit)
+              (IDrop Unit) (IVal Unit)
               (IGet_local 1 (QualC Lin)
                (Coderef
                 (()
@@ -1440,16 +1538,25 @@ module Example_1 = struct
                       ((Ptr (LocV 0)) (QualC Unr))))
                     (QualC Lin)))
                   (QualC Lin))))
-               () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+               () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+               ((Ref W (LocV 0)
+                 (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                (QualC Lin)))
               (IMemUnpack
                (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))) ()
                (IUngroup IRefJoin (IVal Unit)
-                (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))))
+                (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))) Unit)
                 (ISet_local 2 ((Num (Int S I32)) (QualC Unr)))
                 (IStructFree ((Unit (QualC Unr))))
                 (IGet_local 2 (QualC Unr) (Num (Int S I32))) (IVal Unit)
                 (ISet_local 2 (Unit (QualC Unr))) (IMemPack (LocV 1))
-                (IQualify (QualC Lin))))
+                (IQualify (QualC Lin)))
+               ((Prod
+                 (((Cap W (LocV 0)
+                    (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                   (QualC Lin))
+                  ((Ptr (LocV 0)) (QualC Unr))))
+                (QualC Lin)))
               (IVal Unit) (ISet_local 1 (Unit (QualC Unr))) (IVal Unit)
               (ISet_local 0 (Unit (QualC Unr))))))
            () (0 1 2)))
@@ -1838,7 +1945,10 @@ module Example_1 = struct
                     ((Ptr (LocV 0)) (QualC Unr))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+              (QualC Lin)))
             (IMemUnpack
              (()
               (((ExLoc
@@ -1846,7 +1956,13 @@ module Example_1 = struct
                    (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IUngroup IRefJoin (IMemPack (LocV 1))))
+             () (IUngroup IRefJoin (IMemPack (LocV 1)))
+             ((Prod
+               (((Cap W (LocV 0)
+                  (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                 (QualC Lin))
+                ((Ptr (LocV 0)) (QualC Unr))))
+              (QualC Lin)))
             (IGet_local 0 (QualC Lin)
              (Coderef
               (()
@@ -1865,7 +1981,7 @@ module Example_1 = struct
                   (QualC Lin)))
                 (QualC Lin)))
               ((Unit (QualC Unr)))))
-            IDrop (IVal Unit) (IVal Unit)
+            (IDrop Unit) (IVal Unit) (IVal Unit)
             (IGet_local 1 (QualC Lin)
              (Coderef
               (()
@@ -1892,16 +2008,25 @@ module Example_1 = struct
                     ((Ptr (LocV 0)) (QualC Unr))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+              (QualC Lin)))
             (IMemUnpack
              (() (((ExLoc ((Num (Int S I32)) (QualC Unr))) (QualC Lin)))) ()
              (IUngroup IRefJoin (IVal Unit)
-              (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))))
+              (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))) Unit)
               (ISet_local 2 ((Num (Int S I32)) (QualC Unr)))
               (IStructFree ((Unit (QualC Unr))))
               (IGet_local 2 (QualC Unr) (Num (Int S I32))) (IVal Unit)
               (ISet_local 2 (Unit (QualC Unr))) (IMemPack (LocV 1))
-              (IQualify (QualC Lin))))
+              (IQualify (QualC Lin)))
+             ((Prod
+               (((Cap W (LocV 0)
+                  (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                 (QualC Lin))
+                ((Ptr (LocV 0)) (QualC Unr))))
+              (QualC Lin)))
             (IVal Unit) (ISet_local 1 (Unit (QualC Unr))) (IVal Unit)
             (ISet_local 0 (Unit (QualC Unr))))))
          () (0 1 2)))
@@ -1942,6 +2067,16 @@ module Example_1 = struct
                          (QualC Lin)))
                        (QualC Lin)))))
                    (QualC Lin)))
+                 (QualC Lin)))
+               (ExLoc
+                ((Ref W (LocV 0)
+                  (Variant
+                   ((Unit (QualC Unr))
+                    ((ExLoc
+                      ((Ref W (LocV 0)
+                        (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                       (QualC Lin)))
+                     (QualC Lin)))))
                  (QualC Lin))))
               (IMemUnpack (() ()) ()
                ((IVariantCase (QualC Lin)
@@ -1951,9 +2086,49 @@ module Example_1 = struct
                       (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
                      (QualC Lin)))
                    (QualC Lin)))
-                 (() ()) () ((IDrop) (IUnreachable)))))
-              IDrop (IVal Unit)))
-            IDrop (IVal Unit)))
+                 (() ()) () (((IDrop Unit)) (IUnreachable))))
+               ((Ref W (LocV 0)
+                 (Variant
+                  ((Unit (QualC Unr))
+                   ((ExLoc
+                     ((Ref W (LocV 0)
+                       (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                      (QualC Lin)))
+                    (QualC Lin)))))
+                (QualC Lin)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct
+                 ((((ExLoc
+                     ((Ref W (LocV 0)
+                       (Variant
+                        ((Unit (QualC Unr))
+                         ((ExLoc
+                           ((Ref W (LocV 0)
+                             (Struct
+                              ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                            (QualC Lin)))
+                          (QualC Lin)))))
+                      (QualC Lin)))
+                    (QualC Lin))
+                   (SizeC 64))))))
+              (IVal Unit))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((ExLoc
+                    ((Ref W (LocV 0)
+                      (Variant
+                       ((Unit (QualC Unr))
+                        ((ExLoc
+                          ((Ref W (LocV 0)
+                            (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                           (QualC Lin)))
+                         (QualC Lin)))))
+                     (QualC Lin)))
+                   (QualC Lin))
+                  (SizeC 64)))))
+              (QualC Unr)))
+            (IDrop Unit) (IVal Unit)))
           (Fun (get_stashed)
            (()
             (((Unit (QualC Unr)) (Unit (QualC Unr)))
@@ -1991,6 +2166,16 @@ module Example_1 = struct
                          (QualC Lin)))
                        (QualC Lin)))))
                    (QualC Lin)))
+                 (QualC Lin)))
+               (ExLoc
+                ((Ref W (LocV 0)
+                  (Variant
+                   ((Unit (QualC Unr))
+                    ((ExLoc
+                      ((Ref W (LocV 0)
+                        (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                       (QualC Lin)))
+                     (QualC Lin)))))
                  (QualC Lin))))
               (IMemUnpack (() ())
                ((2
@@ -2019,8 +2204,47 @@ module Example_1 = struct
                       ((Ref W (LocV 0)
                         (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
                        (QualC Lin)))
-                     (QualC Lin))))))))
-              IDrop))
+                     (QualC Lin)))))))
+               ((Ref W (LocV 0)
+                 (Variant
+                  ((Unit (QualC Unr))
+                   ((ExLoc
+                     ((Ref W (LocV 0)
+                       (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                      (QualC Lin)))
+                    (QualC Lin)))))
+                (QualC Lin)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct
+                 ((((ExLoc
+                     ((Ref W (LocV 0)
+                       (Variant
+                        ((Unit (QualC Unr))
+                         ((ExLoc
+                           ((Ref W (LocV 0)
+                             (Struct
+                              ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                            (QualC Lin)))
+                          (QualC Lin)))))
+                      (QualC Lin)))
+                    (QualC Lin))
+                   (SizeC 64)))))))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((ExLoc
+                    ((Ref W (LocV 0)
+                      (Variant
+                       ((Unit (QualC Unr))
+                        ((ExLoc
+                          ((Ref W (LocV 0)
+                            (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
+                           (QualC Lin)))
+                         (QualC Lin)))))
+                     (QualC Lin)))
+                   (QualC Lin))
+                  (SizeC 64)))))
+              (QualC Unr)))
             (IGet_local 2 (QualC Lin)
              (ExLoc
               ((Ref W (LocV 0)
@@ -2382,7 +2606,21 @@ module Group_examples = struct
                      ((Num (Int U I32)) (QualC Unr))))
                    (QualC Unr))))
                 (QualC Unr)))
-              IDrop
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct
+                 ((((Prod
+                     (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr))
+                      ((Num (Int U I32)) (QualC Unr))
+                      ((Num (Int U I32)) (QualC Unr))
+                      ((Num (Int U I64)) (QualC Unr))
+                      ((Num (Int U I32)) (QualC Unr))
+                      ((Prod
+                        (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr))
+                         ((Num (Int U I32)) (QualC Unr))))
+                       (QualC Unr))))
+                    (QualC Unr))
+                   (SizeC 288))))))
               (IGet_local 0 (QualC Unr)
                (Prod
                 (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr))
@@ -2392,7 +2630,22 @@ module Group_examples = struct
                    (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr))
                     ((Num (Int U I32)) (QualC Unr))))
                   (QualC Unr)))))
-              (IVal Unit) (ISet_local 0 (Unit (QualC Unr)))))
+              (IVal Unit) (ISet_local 0 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((Prod
+                    (((Num (Int U I32)) (QualC Unr)) (Unit (QualC Unr))
+                     ((Num (Int U I32)) (QualC Unr))
+                     ((Num (Int U I32)) (QualC Unr))
+                     ((Num (Int U I64)) (QualC Unr))
+                     ((Num (Int U I32)) (QualC Unr))
+                     ((Prod
+                       (((Num (Int U I64)) (QualC Unr)) (Unit (QualC Unr))
+                        ((Num (Int U I32)) (QualC Unr))))
+                      (QualC Unr))))
+                   (QualC Unr))
+                  (SizeC 288)))))
+              (QualC Unr)))
             IUngroup IUngroup)))
          () ()))) |}]
   ;;
@@ -2816,9 +3069,15 @@ module Struct_examples = struct
              (((Num (Int U I64)) (QualC Unr))))
             (IMemUnpack (() (((Num (Int U I64)) (QualC Unr)))) ()
              ((IStructGet 0 (((Num (Int U I64)) (QualC Unr))))
-              (ISet_local 0 ((Num (Int U I64)) (QualC Unr))) IDrop
+              (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct ((((Num (Int U I64)) (QualC Unr)) (SizeC 64))))))
               (IGet_local 0 (QualC Unr) (Num (Int U I64))) (IVal Unit)
-              (ISet_local 0 (Unit (QualC Unr))))))))
+              (ISet_local 0 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int U I64)) (QualC Unr)) (SizeC 64)))))
+              (QualC Unr))))))
          () ()))) |}]
   ;;
 
@@ -2883,8 +3142,8 @@ module Struct_examples = struct
               ((Num (Int U I64)) (QualC Unr))))
             (IMemUnpack
              (()
-              (((Num (Int U I64)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
-               ((Num (Int U I32)) (QualC Unr))))
+              (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
+               ((Num (Int U I64)) (QualC Unr))))
              ()
              ((IStructGet 0
                (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
@@ -2897,13 +3156,25 @@ module Struct_examples = struct
               (IStructGet 2
                (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
                 ((Num (Int U I64)) (QualC Unr))))
-              (ISet_local 2 ((Num (Int U I64)) (QualC Unr))) IDrop
+              (ISet_local 2 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct
+                 ((((Num (Int U I32)) (QualC Unr)) (SizeC 32))
+                  (((Num (Int U I32)) (QualC Unr)) (SizeC 32))
+                  (((Num (Int U I64)) (QualC Unr)) (SizeC 64))))))
               (IGet_local 0 (QualC Unr) (Num (Int U I32)))
               (IGet_local 1 (QualC Unr) (Num (Int U I32)))
               (IGet_local 2 (QualC Unr) (Num (Int U I64))) (IVal Unit)
               (ISet_local 0 (Unit (QualC Unr))) (IVal Unit)
               (ISet_local 1 (Unit (QualC Unr))) (IVal Unit)
-              (ISet_local 2 (Unit (QualC Unr))))))))
+              (ISet_local 2 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((Num (Int U I32)) (QualC Unr)) (SizeC 32))
+                 (((Num (Int U I32)) (QualC Unr)) (SizeC 32))
+                 (((Num (Int U I64)) (QualC Unr)) (SizeC 64)))))
+              (QualC Unr))))))
          () ()))) |}]
   ;;
 
@@ -2967,8 +3238,8 @@ module Struct_examples = struct
               ((Num (Int U I64)) (QualC Unr))))
             (IMemUnpack
              (()
-              (((Num (Int U I64)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
-               ((Num (Int U I32)) (QualC Unr))))
+              (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))
+               ((Num (Int U I64)) (QualC Unr))))
              ()
              ((IStructGet 0
                (((Prod
@@ -2984,13 +3255,31 @@ module Struct_examples = struct
                   (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr))))
                  (QualC Unr))
                 ((Num (Int U I64)) (QualC Unr))))
-              (ISet_local 1 ((Num (Int U I64)) (QualC Unr))) IDrop
+              (ISet_local 1 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Struct
+                 ((((Prod
+                     (((Num (Int U I32)) (QualC Unr))
+                      ((Num (Int U I32)) (QualC Unr))))
+                    (QualC Unr))
+                   (SizeC 64))
+                  (((Num (Int U I64)) (QualC Unr)) (SizeC 64))))))
               (IGet_local 0 (QualC Unr)
                (Prod
                 (((Num (Int U I32)) (QualC Unr)) ((Num (Int U I32)) (QualC Unr)))))
               IUngroup (IGet_local 1 (QualC Unr) (Num (Int U I64))) (IVal Unit)
               (ISet_local 0 (Unit (QualC Unr))) (IVal Unit)
-              (ISet_local 1 (Unit (QualC Unr))))))))
+              (ISet_local 1 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((Prod
+                    (((Num (Int U I32)) (QualC Unr))
+                     ((Num (Int U I32)) (QualC Unr))))
+                   (QualC Unr))
+                  (SizeC 64))
+                 (((Num (Int U I64)) (QualC Unr)) (SizeC 64)))))
+              (QualC Unr))))))
          () ()))) |}]
   ;;
 
@@ -3043,11 +3332,14 @@ module Struct_examples = struct
              (((Num (Int U I64)) (QualC Unr))))
             (IMemUnpack (() ()) ((0 ((Num (Int U I64)) (QualC Unr))))
              ((IVal (Num (Int U I64) (First 1)))
-              (IStructSet 0 (((Num (Int U I64)) (QualC Unr)))) (IVal Unit)
-              (IStructSwap 0 (((Num (Int U I64)) (QualC Unr))))
+              (IStructSet 0 (((Num (Int U I64)) (QualC Unr))) (Num (Int U I64)))
+              (IVal Unit) (IStructSwap 0 (((Num (Int U I64)) (QualC Unr))) Unit)
               (IVal (Num (Int U I64) (First 2))) (INe (Ib I64 Iadd))
               (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
-              (IStructFree ((Unit (QualC Unr))))))
+              (IStructFree ((Unit (QualC Unr)))))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int U I64)) (QualC Unr)) (SizeC 64)))))
+              (QualC Lin)))
             (IGet_local 0 (QualC Unr) (Num (Int U I64))))))
          () ()))) |}]
   ;;
@@ -3108,7 +3400,8 @@ module Array_examples = struct
              ((IVal (Num (Int U I32) (Second 0)))
               (IArrayGet ((Num (Int U I64)) (QualC Unr)))
               (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
-              (IArrayFree ((Num (Int U I64)) (QualC Unr)))))
+              (IArrayFree ((Num (Int U I64)) (QualC Unr))))
+             ((Ref W (LocV 0) (Array ((Num (Int U I64)) (QualC Unr)))) (QualC Lin)))
             (IGet_local 0 (QualC Unr) (Num (Int U I64))))))
          () ()))) |}]
   ;;
@@ -3170,7 +3463,8 @@ module Array_examples = struct
               (IVal (Num (Int U I32) (Second 1)))
               (IArrayGet ((Num (Int U I64)) (QualC Unr)))
               (ISet_local 1 ((Num (Int U I64)) (QualC Unr)))
-              (IArrayFree ((Num (Int U I64)) (QualC Unr)))))
+              (IArrayFree ((Num (Int U I64)) (QualC Unr))))
+             ((Ref W (LocV 0) (Array ((Num (Int U I64)) (QualC Unr)))) (QualC Lin)))
             (IGet_local 0 (QualC Unr) (Num (Int U I64)))
             (IGet_local 1 (QualC Unr) (Num (Int U I64))) (INe (Ib I64 Iadd)))))
          () ()))) |}]
@@ -3238,7 +3532,12 @@ module Variant_examples = struct
                ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
                 (Unit (QualC Unr)))
                (() (((Num (Int U I64)) (QualC Unr)))) ()
-               ((IUnreachable) () (IUnreachable))))))))
+               ((IUnreachable) () (IUnreachable))))
+             ((Ref W (LocV 0)
+               (Variant
+                ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
+                 (Unit (QualC Unr)))))
+              (QualC Lin))))))
          () ()))) |}]
   ;;
 
@@ -3270,6 +3569,7 @@ module Variant_examples = struct
                     ; [ IUngroup; INe (Ib (I64, Iadd)) ]
                     ] )
               ; ISet_local 0
+              ; IDrop
               ] )
         ; IGet_local (0, QualC Unr)
         ] )
@@ -3298,9 +3598,25 @@ module Variant_examples = struct
                   (((Num (Int U I64)) (QualC Unr)) ((Num (Int U I64)) (QualC Unr))))
                  (QualC Unr)))
                (() (((Num (Int U I64)) (QualC Unr)))) ()
-               ((IDrop (IVal (Num (Int U I64) (First 2)))) ()
+               (((IDrop Unit) (IVal (Num (Int U I64) (First 2)))) ()
                 (IUngroup (INe (Ib I64 Iadd)))))
-              (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))))
+              (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Variant
+                 ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
+                  ((Prod
+                    (((Num (Int U I64)) (QualC Unr))
+                     ((Num (Int U I64)) (QualC Unr))))
+                   (QualC Unr)))))))
+             ((Ref W (LocV 0)
+               (Variant
+                ((Unit (QualC Unr)) ((Num (Int U I64)) (QualC Unr))
+                 ((Prod
+                   (((Num (Int U I64)) (QualC Unr))
+                    ((Num (Int U I64)) (QualC Unr))))
+                  (QualC Unr)))))
+              (QualC Unr)))
             (IGet_local 0 (QualC Unr) (Num (Int U I64))))))
          () ()))) |}]
   ;;
@@ -3348,7 +3664,7 @@ module Exist_examples = struct
     Fun
       ( []
       , ([], ([], [ Num (Int (U, I64)), QualC Unr ]))
-      , []
+      , [ SizeC 64 ]
       , [ IVal (Num (Int (U, I64), First (Int64.of_int_exn 5)))
         ; ICoderefI 0
         ; IGroup (2, QualC Unr)
@@ -3373,6 +3689,11 @@ module Exist_examples = struct
                   , ([], [ Num (Int (U, I64)), QualC Unr ])
                   , []
                   , [ IUngroup; ICall_indirect ] )
+              ; ISet_local 0
+              ; IDrop
+              ; IGet_local (0, QualC Unr)
+              ; IVal Unit
+              ; ISet_local 0
               ] )
         ] )
   ;;
@@ -3384,7 +3705,7 @@ module Exist_examples = struct
     [%expect
       {|
       ((module
-        (((Fun () (() (() (((Num (Int U I64)) (QualC Unr))))) ()
+        (((Fun () (() (() (((Num (Int U I64)) (QualC Unr))))) ((SizeC 64))
            ((IVal (Num (Int U I64) (First 5))) (ICoderefI 0) (IGroup 2 (QualC Unr))
             (IExistPack (Num (Int U I64))
              (Ex (QualC Unr) (SizeC 64)
@@ -3406,7 +3727,30 @@ module Exist_examples = struct
                     (()
                      ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
                    (QualC Unr))))
-                (QualC Unr)))))))
+                (QualC Unr)))
+              (ISet_local 0 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Ex (QualC Unr) (SizeC 64)
+                 ((Prod
+                   (((Var 0) (QualC Unr))
+                    ((Coderef
+                      (()
+                       ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+                     (QualC Unr))))
+                  (QualC Unr)))))
+              (IGet_local 0 (QualC Unr) (Num (Int U I64))) (IVal Unit)
+              (ISet_local 0 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Ex (QualC Unr) (SizeC 64)
+                ((Prod
+                  (((Var 0) (QualC Unr))
+                   ((Coderef
+                     (()
+                      ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+                    (QualC Unr))))
+                 (QualC Unr))))
+              (QualC Unr)))))
           (Fun ()
            (()
             ((((Num (Int U I64)) (QualC Unr))) (((Num (Int U I64)) (QualC Unr)))))
@@ -3418,7 +3762,7 @@ module Exist_examples = struct
     Fun
       ( []
       , ([], ([], [ Num (Int (U, I64)), QualC Unr ]))
-      , [ SizeC 64 ]
+      , [ SizeC 64; SizeC 64 ]
       , [ IVal (Num (Int (U, I64), First (Int64.of_int_exn 5)))
         ; ICoderefI 0
         ; ICoderefI 1
@@ -3454,6 +3798,11 @@ module Exist_examples = struct
                     ; IVal Unit
                     ; ISet_local 0
                     ] )
+              ; ISet_local 1
+              ; IDrop
+              ; IGet_local (1, QualC Unr)
+              ; IVal Unit
+              ; ISet_local 1
               ] )
         ] )
   ;;
@@ -3465,7 +3814,8 @@ module Exist_examples = struct
     [%expect
       {|
       ((module
-        (((Fun () (() (() (((Num (Int U I64)) (QualC Unr))))) ((SizeC 64))
+        (((Fun () (() (() (((Num (Int U I64)) (QualC Unr)))))
+           ((SizeC 64) (SizeC 64))
            ((IVal (Num (Int U I64) (First 5))) (ICoderefI 0) (ICoderefI 1)
             (IInst ((SizeI (SizeC 64)) (PretypeI (Num (Int U I64)))))
             (IGroup 3 (QualC Unr))
@@ -3502,7 +3852,36 @@ module Exist_examples = struct
                     (()
                      ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
                    (QualC Unr))))
-                (QualC Unr)))))))
+                (QualC Unr)))
+              (ISet_local 1 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Ex (QualC Unr) (SizeC 64)
+                 ((Prod
+                   (((Var 0) (QualC Unr))
+                    ((Coderef
+                      (() ((((Var 0) (QualC Unr))) (((Var 0) (QualC Unr))))))
+                     (QualC Unr))
+                    ((Coderef
+                      (()
+                       ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+                     (QualC Unr))))
+                  (QualC Unr)))))
+              (IGet_local 1 (QualC Unr) (Num (Int U I64))) (IVal Unit)
+              (ISet_local 1 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Ex (QualC Unr) (SizeC 64)
+                ((Prod
+                  (((Var 0) (QualC Unr))
+                   ((Coderef
+                     (() ((((Var 0) (QualC Unr))) (((Var 0) (QualC Unr))))))
+                    (QualC Unr))
+                   ((Coderef
+                     (()
+                      ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+                    (QualC Unr))))
+                 (QualC Unr))))
+              (QualC Unr)))))
           (Fun ()
            (()
             ((((Num (Int U I64)) (QualC Unr))) (((Num (Int U I64)) (QualC Unr)))))
@@ -3518,7 +3897,7 @@ module Exist_examples = struct
     Fun
       ( []
       , ([], ([], [ Num (Int (U, I64)), QualC Unr ]))
-      , [ SizeC 64 ]
+      , [ SizeC 64; SizeC 64 ]
       , [ IVal (Num (Int (U, I64), First (Int64.of_int_exn 5)))
         ; ICoderefI 1
         ; IInst [ SizeI (SizeC 64); PretypeI (Num (Int (U, I64))) ]
@@ -3554,6 +3933,11 @@ module Exist_examples = struct
                     ; IVal Unit
                     ; ISet_local 0
                     ] )
+              ; ISet_local 1
+              ; IDrop
+              ; IGet_local (1, QualC Unr)
+              ; IVal Unit
+              ; ISet_local 1
               ] )
         ] )
   ;;
@@ -3565,7 +3949,8 @@ module Exist_examples = struct
     [%expect
       {|
       ((module
-        (((Fun () (() (() (((Num (Int U I64)) (QualC Unr))))) ((SizeC 64))
+        (((Fun () (() (() (((Num (Int U I64)) (QualC Unr)))))
+           ((SizeC 64) (SizeC 64))
            ((IVal (Num (Int U I64) (First 5))) (ICoderefI 1)
             (IInst ((SizeI (SizeC 64)) (PretypeI (Num (Int U I64))))) (ICoderefI 0)
             (IGroup 3 (QualC Unr))
@@ -3602,7 +3987,36 @@ module Exist_examples = struct
                     (()
                      ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
                    (QualC Unr))))
-                (QualC Unr)))))))
+                (QualC Unr)))
+              (ISet_local 1 ((Num (Int U I64)) (QualC Unr)))
+              (IDrop
+               (Ref W (LocV 0)
+                (Ex (QualC Unr) (SizeC 64)
+                 ((Prod
+                   (((Var 0) (QualC Unr))
+                    ((Coderef
+                      (() ((((Var 0) (QualC Unr))) (((Var 0) (QualC Unr))))))
+                     (QualC Unr))
+                    ((Coderef
+                      (()
+                       ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+                     (QualC Unr))))
+                  (QualC Unr)))))
+              (IGet_local 1 (QualC Unr) (Num (Int U I64))) (IVal Unit)
+              (ISet_local 1 (Unit (QualC Unr))))
+             ((Ref W (LocV 0)
+               (Ex (QualC Unr) (SizeC 64)
+                ((Prod
+                  (((Var 0) (QualC Unr))
+                   ((Coderef
+                     (() ((((Var 0) (QualC Unr))) (((Var 0) (QualC Unr))))))
+                    (QualC Unr))
+                   ((Coderef
+                     (()
+                      ((((Var 0) (QualC Unr))) (((Num (Int U I64)) (QualC Unr))))))
+                    (QualC Unr))))
+                 (QualC Unr))))
+              (QualC Unr)))))
           (Fun ()
            (()
             ((((Num (Int U I64)) (QualC Unr))) (((Num (Int U I64)) (QualC Unr)))))
@@ -3726,7 +4140,10 @@ module L3_misc = struct
                     ((Ptr (LocV 0)) (QualC Unr))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+             ((Ref W (LocV 0)
+               (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 64)))))
+              (QualC Lin)))
             (IMemUnpack
              (()
               (((Prod
@@ -3779,11 +4196,13 @@ module L3_misc = struct
                (Prod
                 (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr)))))
               (IVal Unit) (ISet_local 3 (Unit (QualC Unr)))
-              (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))))
-              (ISet_local 4 ((Num (Int S I32)) (QualC Unr))) IRefSplit IDrop
-              (IGet_local 4 (QualC Unr) (Num (Int S I32))) (IVal Unit)
-              (ISet_local 4 (Unit (QualC Unr))) (IGroup 2 (QualC Lin)) IUngroup
-              (ISet_local 6 ((Num (Int S I32)) (QualC Unr)))
+              (IStructSwap 0 (((Num (Int S I32)) (QualC Unr)))
+               (Prod
+                (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr)))))
+              (ISet_local 4 ((Num (Int S I32)) (QualC Unr))) IRefSplit
+              (IDrop (Ptr (LocV 0))) (IGet_local 4 (QualC Unr) (Num (Int S I32)))
+              (IVal Unit) (ISet_local 4 (Unit (QualC Unr))) (IGroup 2 (QualC Lin))
+              IUngroup (ISet_local 6 ((Num (Int S I32)) (QualC Unr)))
               (ISet_local 5
                ((Cap W (LocV 0)
                  (Struct
@@ -3807,7 +4226,13 @@ module L3_misc = struct
               (IVal Unit) (ISet_local 5 (Unit (QualC Unr))) (IVal Unit)
               (ISet_local 2 (Unit (QualC Unr))) (IVal Unit)
               (ISet_local 1 (Unit (QualC Unr))) (IVal Unit)
-              (ISet_local 0 (Unit (QualC Unr))))))))
+              (ISet_local 0 (Unit (QualC Unr))))
+             ((Prod
+               (((Cap W (LocV 0)
+                  (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 64)))))
+                 (QualC Lin))
+                ((Ptr (LocV 0)) (QualC Unr))))
+              (QualC Lin))))))
          () (0)))) |}]
   ;;
 
@@ -3935,7 +4360,8 @@ module L3_misc = struct
      () (0 1 2)) |}
     in
     test_annotation [ "l3", module_ |> Sexp.of_string |> Rich_wasm.Module.t_of_sexp ];
-    [%expect {|
+    [%expect
+      {|
       ((l3
         (((Fun (easy_swap_int)
            ((Loc)
@@ -3975,11 +4401,11 @@ module L3_misc = struct
             (IGet_local 3 (QualC Unr) (Ptr (LocV 0))) IRefJoin
             (IGet_local 4 (QualC Unr) (Num (Int S I32))) (IVal Unit)
             (ISet_local 4 (Unit (QualC Unr)))
-            (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))))
-            (ISet_local 5 ((Num (Int S I32)) (QualC Unr))) IRefSplit IDrop
-            (IGet_local 5 (QualC Unr) (Num (Int S I32))) (IVal Unit)
-            (ISet_local 5 (Unit (QualC Unr))) (IGroup 2 (QualC Lin)) IUngroup
-            (ISet_local 7 ((Num (Int S I32)) (QualC Unr)))
+            (IStructSwap 0 (((Num (Int S I32)) (QualC Unr))) (Num (Int S I32)))
+            (ISet_local 5 ((Num (Int S I32)) (QualC Unr))) IRefSplit
+            (IDrop (Ptr (LocV 0))) (IGet_local 5 (QualC Unr) (Num (Int S I32)))
+            (IVal Unit) (ISet_local 5 (Unit (QualC Unr))) (IGroup 2 (QualC Lin))
+            IUngroup (ISet_local 7 ((Num (Int S I32)) (QualC Unr)))
             (ISet_local 6
              ((Cap W (LocV 0)
                (Struct ((((Num (Int S I32)) (QualC Unr)) (SizeC 32)))))
@@ -4047,7 +4473,15 @@ module L3_misc = struct
                     ((Ptr (LocV 0)) (QualC Unr))))
                   (QualC Lin)))
                 (QualC Lin))))
-             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1))))
+             () (IRefSplit (IGroup 2 (QualC Lin)) (IMemPack (LocV 1)))
+             ((Ref W (LocV 0)
+               (Struct
+                ((((Prod
+                    (((Num (Int S I32)) (QualC Unr))
+                     ((Num (Int S I32)) (QualC Unr))))
+                   (QualC Lin))
+                  (SizeC 64)))))
+              (QualC Lin)))
             (IMemUnpack
              (()
               (((ExLoc
@@ -4115,12 +4549,13 @@ module L3_misc = struct
               (IStructSwap 0
                (((Prod
                   (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr))))
-                 (QualC Lin))))
+                 (QualC Lin)))
+               Unit)
               (ISet_local 6
                ((Prod
                  (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr))))
                 (QualC Lin)))
-              IRefSplit IDrop
+              IRefSplit (IDrop (Ptr (LocV 0)))
               (IGet_local 6 (QualC Lin)
                (Prod
                 (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr)))))
@@ -4157,11 +4592,13 @@ module L3_misc = struct
                (Prod
                 (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr)))))
               (IVal Unit) (ISet_local 13 (Unit (QualC Unr)))
-              (IStructSwap 0 ((Unit (QualC Unr))))
-              (ISet_local 14 (Unit (QualC Unr))) IRefSplit IDrop
+              (IStructSwap 0 ((Unit (QualC Unr)))
+               (Prod
+                (((Num (Int S I32)) (QualC Unr)) ((Num (Int S I32)) (QualC Unr)))))
+              (ISet_local 14 (Unit (QualC Unr))) IRefSplit (IDrop (Ptr (LocV 0)))
               (IGet_local 14 (QualC Unr) Unit) (IVal Unit)
               (ISet_local 14 (Unit (QualC Unr))) (IGroup 2 (QualC Lin)) IUngroup
-              IDrop
+              (IDrop Unit)
               (ISet_local 15
                ((Cap W (LocV 0)
                  (Struct
@@ -4189,7 +4626,18 @@ module L3_misc = struct
               (ISet_local 7 (Unit (QualC Unr))) (IVal Unit)
               (ISet_local 4 (Unit (QualC Unr))) (IVal Unit)
               (ISet_local 3 (Unit (QualC Unr))) (IVal Unit)
-              (ISet_local 2 (Unit (QualC Unr)))))))
+              (ISet_local 2 (Unit (QualC Unr))))
+             ((Prod
+               (((Cap W (LocV 0)
+                  (Struct
+                   ((((Prod
+                       (((Num (Int S I32)) (QualC Unr))
+                        ((Num (Int S I32)) (QualC Unr))))
+                      (QualC Lin))
+                     (SizeC 64)))))
+                 (QualC Lin))
+                ((Ptr (LocV 0)) (QualC Unr))))
+              (QualC Lin)))))
           (Fun () (() (() ((Unit (QualC Lin))))) ()
            ((IVal Unit) (IQualify (QualC Lin)))))
          () (0 1 2)))) |}]
