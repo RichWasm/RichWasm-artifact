@@ -22,7 +22,7 @@ docker run -it richwasm
 
 ### Running a pre-built image 
 
-We have provided a pre-built docker image on DockerHub. Get the container running with the following commands.
+We have provided a pre-built docker image on [DockerHub](https://hub.docker.com/r/richwasm/richwasm-artifact-image). Get the container running with the following commands.
 ```
 # Pull Docker image from DockerHub
 docker pull richwasm/richwasm-artifact-image
