@@ -20,6 +20,17 @@ To connect to the container, run
 docker run -it richwasm
 ```
 
+### Running a pre-built image 
+
+We have provided a pre-built docker image on DockerHub. Get the container running with the following commands.
+```
+# Pull Docker image from DockerHub
+docker pull richwasm/richwasm-artifact-image
+
+# Run a container with the image
+docker run -it richwasm/richwasm-artifact-image:latest
+```
+
 ### Container structure 
 
 The container is organized as follows.
@@ -48,7 +59,6 @@ To compile the proofs, run the following commands in the docker container. Compi
 ```
 cd /home/RichWasm/coq-proof
 eval $(opam env --switch=4.08.1)    // switch to the right version of the OCaml compiler 
-make Coq.Makefile
 make
 ```
 Your output might contain a few warnings but should not have any errors. 

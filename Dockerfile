@@ -56,4 +56,7 @@ RUN opam switch create 4.08.1 \
 # To compile the proofs 
 # RUN eval $(opam env --switch=4.08.1) && make Coq.Makefile && make
 
+WORKDIR /home/RichWasm/compilers/richwasm 
+RUN cargo build 
+
 WORKDIR /

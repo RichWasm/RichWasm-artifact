@@ -12,7 +12,6 @@ pub mod rwasm;
 pub mod translate;
 pub mod translate_insts;
 pub mod translate_tests;
-pub mod interop_tests;
 
 use std::{io, path::PathBuf};
 
