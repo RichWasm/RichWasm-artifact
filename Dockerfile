@@ -54,9 +54,13 @@ RUN opam switch create 4.08.1 \
    && opam install coq-ext-lib.0.11.5 --yes 
 
 # To compile the proofs 
-# RUN eval $(opam env --switch=4.08.1) && make Coq.Makefile && make
+# RUN eval $(opam env --switch=4.08.1) && make
 
 WORKDIR /home/RichWasm/compilers/richwasm 
 RUN cargo build 
+
+# To test RichWasm compiler 
+# cargo test 
+
 
 WORKDIR /
