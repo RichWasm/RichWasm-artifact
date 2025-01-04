@@ -13,7 +13,8 @@ RUN apt-get update -y -q \
    opam \
    rsync \
    sudo \
-   libgmp-dev python3
+   libgmp-dev python3 \
+   pkg-config
 
 # Install OCaml and Coq 
 RUN opam init --auto-setup --yes --bare --disable-sandboxing \

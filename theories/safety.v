@@ -321,11 +321,14 @@ Module Safety (M : Memory) (T : MemTyping M).
       exists taus. exists S. exists (empty_LinTyp S).
       split; [| split]; eauto.
       + simpl.
-        eapply ChangeEndLocalTyp; [ | eauto ].
-        apply LCEffEqual_sym.
-        eapply values_same_local_context; eauto.
-      + show_tlvs H; eapply values_same_local_context in H.
-        eapply ChangeEndLocalTyp; [ eauto | ].
+        eapply ChangeEndLocalTyp; [ | | eauto ].
+        ++ eapply HasTypeInstruction_FirstLocalValid; eauto.
+        ++ apply LCEffEqual_sym.
+           eapply values_same_local_context; eauto.
+      + specialize (HasTypeInstruction_QualValid H).
+        intros.
+        show_tlvs H; eapply values_same_local_context in H.
+        eapply ChangeEndLocalTyp; [ eauto | eauto | ].
         eapply HasTypeInstruction_empty_list; auto.
         destruct S; simpl; eauto.
       + eapply SplitStoreTypings_EmptyHeapTyping_r.
@@ -354,15 +357,19 @@ Module Safety (M : Memory) (T : MemTyping M).
   Proof.
     revert S C F L t1 t2 L'.
     eapply rev_ind with (l := vs); simpl; intros.
-    - show_tlvs H; eapply Empty_HasTypeInstruction in H.
+    - specialize (HasTypeInstruction_QualValid H).
+      intros.
+      show_tlvs H; eapply Empty_HasTypeInstruction in H.
       destructAll.
       exists [].
       split; eauto.
-      -- rewrite app_nil_r. congruence.
+      rewrite app_nil_r. congruence.
     - rewrite map_app. rewrite map_app in H0. simpl. simpl in H0.
       edestruct composition_typing_single in H0. eassumption. destructAll.
       eapply H in H4.
       destructAll.
+      specialize (HasTypeInstruction_QualValid H5).
+      intros.
       show_tlvs H5; eapply Val_HasTypeInstruction in H5.
       destructAll.
       exists (x7 ++ [x3]).
@@ -378,10 +385,13 @@ Module Safety (M : Memory) (T : MemTyping M).
         * eapply Forall_trivial. intros. destruct x2. eapply QualLeq_Top.
         * eapply QualLeq_Top.
         * eapply ChangeEndLocalTyp.
+          { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
           { destruct F; subst; simpl in *; eauto. }
           eapply ValTyp.
           2:{ destruct F; subst; simpl in *; solve_lcvs. }
-          eapply HasTypeValue_Function_Ctx; [| | | | exact H9]; destruct F; eauto.
+          2:{ destruct F; simpl; rewrite get_set_hd; econstructor; eauto. }
+          eapply HasTypeValue_Function_Ctx; [| | | | exact H10]; destruct F; eauto.
+        * econstructor; eauto.
         * solve_tvs.
   Qed.
 
@@ -391,6 +401,7 @@ Module Safety (M : Memory) (T : MemTyping M).
     type F = type F' ->
     location F = location F' ->
     HasTypeInstruction S C F L (map term.Val vs) (Arrow [] tauvs) L' ->
+    QualValid (qual F') (get_hd (linear F')) ->
     HasTypeInstruction S C F' L (map term.Val vs) (Arrow [] tauvs) L'.
   Proof.
     revert F F' S C L L' tauvs.
@@ -398,6 +409,7 @@ Module Safety (M : Memory) (T : MemTyping M).
     - show_tlvs H3; eapply Empty_HasTypeInstruction in H3.
       destructAll.
       eapply ChangeEndLocalTyp.
+      { eapply LocalCtxValid_Function_Ctx; eauto. }
       { destruct F; destruct F'; subst; simpl in *; eauto.
         match goal with
         | [ H : _ = ?A |- _ ?A _ _ ] => rewrite <-H; eauto
@@ -409,12 +421,12 @@ Module Safety (M : Memory) (T : MemTyping M).
       assert (Hd : [] = x1) by (destruct x0; destruct x1; eauto; discriminate).
       destruct Hd.
       eapply ConsTyp.
-      exact H10.
+      exact H11.
       eapply H; eauto.
       assert (Hd : [] = x0) by (destruct x0; eauto; discriminate).
       destruct Hd.
       rewrite app_nil_l.
-      show_tlvs H9; eapply Val_HasTypeInstruction in H9.
+      show_tlvs H10; eapply Val_HasTypeInstruction in H10.
       destructAll.
       assert (Hrw : x3 = x3 ++ []) by (rewrite app_nil_r; eauto).
       rewrite Hrw.
@@ -423,15 +435,18 @@ Module Safety (M : Memory) (T : MemTyping M).
       + eapply Forall_trivial. intros. destruct x1. eapply QualLeq_Top.
       + eapply QualLeq_Top.
       + rewrite app_nil_l.
-        eapply HasTypeValue_Function_Ctx in H14.
+        eapply HasTypeValue_Function_Ctx in H15.
         { eapply ChangeEndLocalTyp.
+          { destruct F; destruct F'; simpl in *; subst; eapply LocalCtxValid_Function_Ctx; eauto. }
           { destruct F; destruct F'; subst; simpl in *; eauto.
             match goal with
             | [ H : _ = ?A |- _ ?A _ _ ] => rewrite <-H; eauto
             end. }
           eapply ValTyp; eauto.
-          destruct F; destruct F'; subst; simpl in *; solve_lcvs. }
+          - destruct F; destruct F'; subst; simpl in *; solve_lcvs.
+          - destruct F'; simpl; rewrite get_set_hd; econstructor; eauto. }
         all: destruct F; destruct F'; eauto.
+      + econstructor; eauto.
       + destruct F; destruct F'; subst; simpl in *; solve_tvs.
   Qed.
 
@@ -463,19 +478,24 @@ Module Safety (M : Memory) (T : MemTyping M).
       + eapply Forall_trivial. intros. destruct x0. eapply QualLeq_Top.
       + eapply QualLeq_Top.
       + eapply ChangeEndLocalTyp.
+        { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
         { destruct F; subst; simpl in *; eauto. }
         eapply HasTypeInstruction_empty_list; auto.
-        destruct F; subst; simpl in *; solve_lcvs.
+        ++ destruct F; subst; simpl in *; solve_lcvs.
+        ++ destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+      + eapply HasTypeInstruction_QualValid; eauto.
+      + econstructor; eauto.
     - rewrite app_assoc in H0.
       edestruct composition_typing_single_strong in H0. eassumption.
       destructAll.
-      destruct H5. destruct H2.
+      simpl in *.
+      destructAll.
       eapply H in H1.
       destructAll.
-      assert (H20 := SplitStoreTypings_assoc _ _ _ _ _ H8 H5).
+      assert (H20 := SplitStoreTypings_assoc _ _ _ _ _ H10 H7).
       destruct H20 as [x11 [H100 H101]].
       exists x8. exists x9. exists x11.
-      split; [eapply HasTypeInstruction_val_Function_Ctx; [| | | | eassumption]; destruct F; eauto |].
+      split; [eapply HasTypeInstruction_val_Function_Ctx; [| | | | eassumption|]; destruct F; eauto |].
       split; eauto.
       rewrite<- app_assoc.
       eapply FrameTyp; eauto.
@@ -659,6 +679,7 @@ Module Safety (M : Memory) (T : MemTyping M).
     eapply rev_ind with (l := vs); simpl; intros.
     - match goal with
       | [ H : HasTypeInstruction _ _ _ _ [] _ _ |- _ ] =>
+        specialize (HasTypeInstruction_QualValid H);
         show_tlvs H; eapply Empty_HasTypeInstruction in H
       end.
       destructAll.
@@ -686,7 +707,7 @@ Module Safety (M : Memory) (T : MemTyping M).
       match goal with
       | [ H : forall _ _ _ _ _ _ _, _ |- _ ] => eapply H
       end.
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ eauto | eauto | ].
       eauto.
       solve_lcvs.
       assert (Hrw : x3 = x3 ++ []) by (rewrite app_nil_r; eauto).
@@ -698,7 +719,10 @@ Module Safety (M : Memory) (T : MemTyping M).
       + rewrite app_nil_l.
         eapply ValTyp.
         eapply HasTypeValue_Function_Ctx; [ | | | | eauto]; destruct F; eauto.
-        destruct F; subst; simpl in *; solve_lcvs.
+        -- destruct F; subst; simpl in *; solve_lcvs.
+        -- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+      + eapply HasTypeInstruction_QualValid; eauto.
+      + econstructor; eauto.
   Qed.
 
   Lemma HasTypeInstruction_val_frame_agnostic S C F L L' vs taus tauvs:
@@ -714,7 +738,11 @@ Module Safety (M : Memory) (T : MemTyping M).
     - eapply Forall_trivial. intros. destruct x. eapply QualLeq_Top.
     - eapply QualLeq_Top.
     - rewrite app_nil_l.
-      eapply HasTypeInstruction_val_Function_Ctx; [| | | | eauto]; destruct F;  eauto.
+      eapply HasTypeInstruction_val_Function_Ctx; [| | | | eauto|]; destruct F;  eauto.
+      simpl.
+      rewrite get_set_hd; econstructor; eauto.
+    - eapply HasTypeInstruction_QualValid; eauto.
+    - econstructor; eauto.
   Qed.
 
   Lemma HasTypeLocals_Function_Ctx Ss F F' vs L:
@@ -815,7 +843,7 @@ Module Safety (M : Memory) (T : MemTyping M).
         eapply Empty_HasTypeInstruction in H
       end.
       destructAll.
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ eauto | eauto | ].
       eassumption.
     - edestruct composition_typing_single_strong. eassumption. destructAll.
       simpl in *; destructAll.
@@ -2118,6 +2146,46 @@ Module Safety (M : Memory) (T : MemTyping M).
          case obj; intros; subst; auto.
   Qed.
 
+  Lemma LCEffEqual_closed_sizes_LocalCtxValid : forall {L L' F szs},
+      LocalCtxValid F L ->
+      LCEffEqual (size F) L L' ->
+      (let (_, szs') := split L' in szs' = map SizeConst szs) ->
+      LocalCtxValid F L'.
+  Proof.
+    induction L.
+    all: intros; simpl in *.
+    all:
+      match goal with
+      | [ H : LCEffEqual _ _ _ |- _ ] => inv H
+      end.
+    all: constructor.
+    all: destruct_prs.
+    all:
+      match goal with
+      | [ H : LocalCtxValid _ (_ :: _) |- _ ] =>
+          rewrite LocalCtxValid_cons in H
+      end.
+    all: destructAll.
+    all: simpl in *.
+    all:
+      match goal with
+      | [ H : context[split ?L] |- _ ] =>
+          remember (split L) as obj; destruct obj
+      end.
+    all:
+      match goal with
+      | [ H : _ :: _ = map _ ?L |- _ ] =>
+          destruct L; simpl in *; inv H
+      end.
+    - split; auto.
+      econstructor; eauto.
+    - eapply IHL; eauto.
+      match goal with
+      | [ H : _ = ?A |- context[?A] ] => rewrite <-H
+      end.
+      eauto.
+  Qed.
+
   Theorem Preservation_general :
     forall S i s vs szs es taus s' vs' es' L L' C S_ignore S_stack Sp Sh Ss,
     let F := update_ret_ctx None empty_Function_Ctx in
@@ -2333,15 +2401,23 @@ Module Safety (M : Memory) (T : MemTyping M).
         destructAll.
         assert (Hrw : (update_linear_ctx (Cons_p (QualConst Unrestricted) (linear (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))) (update_label_ctx ((t1', L2) :: label (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f))) (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))) = (update_ret_ctx o (update_linear_ctx (Cons_p (QualConst Unrestricted) (linear (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))) (update_label_ctx ((t1', L2) :: label (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f))) (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))))) by (destruct f; simpl; congruence).
         simpl in *.
-        rewrite Hrw in H38.
-        clear Hrw.
-        assert (IH := IHk _ _ _ (S_ignore ++ [S_vs]) _ _ _ H38).
+        match type of Hrw with
+        | ?A = _ =>
+            match goal with
+            | [ H : context[A] |- _ ] =>
+                rewrite Hrw in H; clear Hrw;
+                assert (IH := IHk _ _ _ (S_ignore ++ [S_vs]) _ _ _ H)
+            end
+        end.
         edestruct IH; eauto.
         { clear - Hf_empty. invert Hf_empty. destruct f; unfold Function_Ctx_empty; simpl; simpl in *. eauto. }
         { eapply HasTypeLocals_Function_Ctx; [ | | | | exact H6]; destruct f; simpl; eauto. }
         { clear - Hremember2. simpl in Hremember2. rewrite forallb_app in Hremember2. simpl in Hremember2. do 4 do_bools. eassumption. }
         { clear - Hremember2. simpl in Hremember2. rewrite forallb_app in Hremember2. simpl in Hremember2. do 4 do_bools. eassumption. }
-        destruct H7 as [Sp' [Sh' [S_stack' [Ss' [L'' [H40 [H41 [H42 [H43 [H44 [H45 [H46 [H47 H48]]]]]]]]]]]]].
+        match goal with
+        | [ H : exists _, _ |- _ ] =>
+            destruct H as [Sp' [Sh' [S_stack' [Ss' [L'' [H40 [H41 [H42 [H43 [H44 [H45 [H46 [H47 H48]]]]]]]]]]]]]
+        end.
         rewrite map_app in H43.
         simpl in H43.
         eapply remember_label_vs in H43.
@@ -2383,7 +2459,7 @@ Module Safety (M : Memory) (T : MemTyping M).
           rewrite<- H8. rewrite<- H6. rewrite<- H4. rewrite<- H2. rewrite<- H0. exact H46.
         }
         eapply (HasTypeInstruction_grow_unr _ S_stack') in H24; eauto.
-        eapply (HasTypeInstruction_grow_unr _ S_stack') in H37; eauto.
+        eapply (HasTypeInstruction_grow_unr _ S_stack') in H7; eauto.
         assert (Hrw : (update_unr (UnrTyp S_stack') (empty_LinTyp S_es) = empty_LinTyp S_stack')).
         { clear - IH1 H2 H46 H47 H50 H51 H40.
           invert H2. invert H. clear H H0 H5 H2. destruct H4.
@@ -2395,19 +2471,26 @@ Module Safety (M : Memory) (T : MemTyping M).
           rewrite<- H7. rewrite<- H5. rewrite<- H3. rewrite<- H47. rewrite H. rewrite H1. congruence.
         }
         rewrite Hrw in H24.
-        rewrite Hrw in H37.
-        clear Hrw.
+        match type of Hrw with
+        | ?A = _ =>
+            match goal with
+            | [ H : context[A] |- _ ] =>
+                rewrite Hrw in H; clear Hrw
+            end
+        end.
         eapply HasTypeInstruction_cons; [| exact H24].
         assert (Hrw : (l ++ tausvs) = ((l ++ tausvs) ++ [])) by (rewrite app_nil_r; eauto).
         rewrite Hrw at 1.
         clear Hrw.
-        eapply FrameTyp; [ | exact H34 | exact H35 | | ].
+        eapply FrameTyp; [ | exact H34 | exact H35 | | | | ].
         congruence.
         eapply (CtxCongr _ _ _ _ _ _ _ _ k0) in H9.
-        assert (exists S_rest, SplitStoreTypings (S_es :: [S_rest] ++ Ss) Sp) by (clear - H22 H5; eapply ignore_rest_of_stack; eauto).
-        destruct H7 as [H202 H203].
-        assert (exists S_rest, SplitStoreTypings (S_stack' :: [S_rest] ++ Ss') Sp') by (eapply ignore_rest_of_stack; eauto).
-        destruct H7 as [H200 H201].
+        let H' := fresh "H" in
+        assert (H' : exists S_rest, SplitStoreTypings (S_es :: [S_rest] ++ Ss) Sp) by (clear - H22 H5; eapply ignore_rest_of_stack; eauto);
+        destruct H' as [H202 H203].
+        let H' := fresh "H" in
+        assert (H' : exists S_rest, SplitStoreTypings (S_stack' :: [S_rest] ++ Ss') Sp') by (eapply ignore_rest_of_stack; eauto);
+        destruct H' as [H200 H201].
         assert (H204 : well_formed_Inst_list (L |[ es1 ]|) = true).
         { clear - Hremember2.
           simpl in *.
@@ -2436,28 +2519,64 @@ Module Safety (M : Memory) (T : MemTyping M).
         rewrite<- Htl.
 *)
 
-        eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+        eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+        {
+          eapply HasTypeInstruction_FirstLocalValid; eauto.
+        }
         eapply LabelTyp.
         3:{
-          eapply ChangeBegLocalTyp; [ eauto | ].
-          eapply ChangeEndLocalTyp; [ eauto | ].
-          eauto.
+          eapply ChangeBegLocalTyp; [ eauto | eauto | ].
+          eapply ChangeEndLocalTyp; [ eauto | eauto | ].
+          match goal with
+          | [ H : HasTypeInstruction ?S _ ?F _ _ _ _
+              |- HasTypeInstruction ?S2 _ ?F _ _ _ _ ] =>
+              replace S2 with S; [ exact H | ]
+          end.
+          unfold update_unr.
+          do 2 match goal with
+          | [ |- context[empty_LinTyp ?S] ] => destruct S; simpl
+          end.
+          simpl in *.
+          repeat  match goal with
+          | [ H : SplitStoreTypings [_; _] _ |- _ ] => inv H
+            end.
+          simpl in *.
+          repeat match goal with
+                 | [ H : Forall _ [_; _] |- _ ] => inv H
+                 | [ H : Forall _ [_] |- _ ] => inv H
+                 end.
+          destructAll.
+          simpl in *.
+          subst.
+          match goal with
+          | [ H : ?A = ?B, H' : ?C = ?B |- _ ] =>
+              rewrite H'; rewrite <-H
+          end.
+          auto.
         }
         1:{ eauto. }
         assert (Hrw : (update_linear_ctx (Cons_p (QualConst Unrestricted) (linear (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))) (update_label_ctx ((t1', L2) :: label (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f))) (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))) = (update_ret_ctx o (update_linear_ctx (Cons_p (QualConst Unrestricted) (linear (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))) (update_label_ctx ((t1', L2) :: label (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f))) (update_linear_ctx (set_hd qf (linear (update_ret_ctx o f))) (update_ret_ctx o f)))))).
         { destruct f; simpl. congruence. }
         rewrite Hrw.
-        eapply ChangeEndLocalTyp; [ destruct f; subst; simpl in *; eauto | ].
+        eapply ChangeEndLocalTyp; [ | destruct f; subst; simpl in *; eauto | ].
+        { destruct f; eapply LocalCtxValid_Function_Ctx; eauto. }
         exact H45.
 
         repeat match goal with
                | [ H : HasTypeInstruction _ _ _ _ _ _ _ |- _ ] =>
                  show_tlvs H; clear H
                end.
-        destruct f; subst; simpl in *; solve_tvs.
+        destruct f; simpl in *; rewrite get_set_hd; auto.
+        destruct f; simpl in *; auto.
+        destruct f; simpl in *; auto.
+        eapply proj1.
+        eapply Forall_app.
+        eapply HasTypeInstruction_InputTypesValid; eauto.
     - simpl in H0.
       do_bools.
       do_bools.
+      specialize (HasTypeInstruction_QualValid H7).
+      intro Hqvalid.
       specialize (HasTypeInstruction_TypeAndLocalValid H7).
       intro Hvalid.
       destruct Hvalid as [Hv1 [Hv2 [Hv3 Hv4]]].
@@ -2534,7 +2653,13 @@ Module Safety (M : Memory) (T : MemTyping M).
       specialize (LCHasSizes_exists IH9).
       intros; destructAll.
       eapply ConfTypFull.
-      5: eauto.
+      6:{
+        eapply ChangeBegLocalTyp.
+        - eapply LCEffEqual_closed_sizes_LocalCtxValid; eauto.
+          eapply HasTypeInstruction_FirstLocalValid; eauto.
+        - unfold empty_Function_Ctx; simpl; eauto.
+        - eauto.
+      }
       all: eauto.
       -- eapply SplitStoreTypings_cons_InstTyp in H102.
          rewrite H102.
@@ -2543,7 +2668,8 @@ Module Safety (M : Memory) (T : MemTyping M).
          eapply LCEffEqual_HasTypeLocals; eauto.
       -- destruct f; subst; simpl in *; solve_lcvs.
       -- destruct f; subst; simpl in *; solve_tvs.
-
+      -- destruct f; simpl; rewrite get_set_hd; econstructor; eauto.
+      -- econstructor; eauto.
     - exists S. exists Sp. exists Sh. exists S_stack. exists Ss. exists L.
       split; eauto.
       split; eauto.
@@ -2738,7 +2864,13 @@ Module Safety (M : Memory) (T : MemTyping M).
         specialize (LCHasSizes_exists H108).
         intros; destructAll.
         eapply ConfTypFull.
-        5: eauto.
+        6:{
+          eapply ChangeBegLocalTyp.
+          - eapply LCEffEqual_closed_sizes_LocalCtxValid; eauto.
+            eapply HasTypeInstruction_FirstLocalValid; eauto.
+          - unfold empty_Function_Ctx; simpl; eauto.
+          - eauto.
+        }
         all: eauto.
         eapply LCEffEqual_HasTypeLocals; eauto.
   Qed.

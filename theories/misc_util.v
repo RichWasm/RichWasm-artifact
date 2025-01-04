@@ -222,7 +222,7 @@ Proof.
   eapply (TypeValid_ind' P (fun _ _ => True) (fun _ _ => True) (fun _ _ => True));
     unfold P; intros; simpl; eauto.
   - destruct n as [? [] | [|]]; simpl; eauto.
-  - rewrite H0. simpl. eauto.
+  - rewrite H1. simpl. eauto.
   - simpl in *.
     revert H1. clear. intros Hall. induction Hall; simpl; eauto.
     destructAll. rewrite H. rewrite H0. eauto.
@@ -1777,63 +1777,39 @@ Proof.
   - eapply LCSizeEqual_trans; eauto.
   - unfold F' in *.
     destruct F. destruct F'. auto.
-  - apply LCEffEqual_LCSizeEqual in H.
-    rewrite  LCSizeEqual_comm in H.
+  - apply LCEffEqual_LCSizeEqual in H0.
+    rewrite  LCSizeEqual_comm in H0.
     eapply LCSizeEqual_trans; eauto.
-  - apply LCEffEqual_LCSizeEqual in H.
+  - apply LCEffEqual_LCSizeEqual in H0.
     eapply LCSizeEqual_trans; eauto.
-Qed.
-
-Lemma add_local_effects_app : forall {tl1 L tl2},
-    add_local_effects (add_local_effects L tl1) tl2 =
-    add_local_effects L (tl1 ++ tl2).
-Proof.
-  induction tl1; simpl; auto.
-  intros.
-  destruct_prs.
-  remember (get_localtype n L) as obj.
-  generalize (eq_sym Heqobj).
-  case obj; intros.
-  - destruct_prs.
-    eauto.
-  - eauto.
-Qed.
-
-Lemma add_local_effects_app_lceff : forall {L1 L2 L3 C tl1 tl2},
-    LCEffEqual C (add_local_effects L1 tl1) L2 ->
-    LCEffEqual C (add_local_effects L2 tl2) L3 ->
-    LCEffEqual C (add_local_effects L1 (tl1 ++ tl2)) L3.
-Proof.
-  intros.
-  rewrite <-add_local_effects_app.
-  eapply LCEffEqual_trans; [ | eauto ].
-  apply LCEffEqual_add_local_effects; auto.
 Qed.
 
 Lemma HasTypeInstruction_local_is_tl : forall S M F L es tf L',
   HasTypeInstruction S M F L es tf L' ->
   exists tl,
+    LocalCtxValid F (add_local_effects L tl) /\
     LCEffEqual (size F) (add_local_effects L tl) L'.
 Proof.
   apply
     (HasTypeInstruction_mind'
        (fun S M F L es tf L' =>
           exists tl,
+            LocalCtxValid F (add_local_effects L tl) /\
             LCEffEqual (size F) (add_local_effects L tl) L')
        (fun _ _ _ => True)
        (fun _ _ _ _ _ => True)
        (fun _ _ _ _ _ _ _ => True)).
   all: intros; simpl in *; auto.
-
+    
   all:
     try match goal with
-        | [ |- exists _, LCEffEqual _ (add_local_effects _ _) (add_local_effects _ _) ] =>
-          eexists; apply LCEffEqual_refl
+        | [ |- exists _, LocalCtxValid _ _ /\ LCEffEqual _ (add_local_effects _ _) (add_local_effects _ _) ] =>
+          eexists; split; eauto; apply LCEffEqual_refl
         end.
   all:
     try match goal with
-        | [ |- exists _, LCEffEqual _ (add_local_effects ?L _) _ ] =>
-          exists []; simpl; apply LCEffEqual_refl
+        | [ |- exists _, LocalCtxValid _ _ /\ LCEffEqual _ (add_local_effects ?L _) _ ] =>
+          exists []; simpl; split; eauto; apply LCEffEqual_refl
         end.
   all: destructAll.
   all: destruct F; subst; simpl in *.
@@ -1852,15 +1828,36 @@ Proof.
   all:
     try match goal with
         | [ H : ?A = _ |- context[?A] ] =>
-          rewrite H; apply LCEffEqual_refl
+          rewrite H; split; eauto; [ | apply LCEffEqual_refl ]
         end.
-  all: try now ltac:(eexists; apply LCEffEqual_refl).
+  all: try split; eauto.
+  all: try eapply LocalCtxValid_Function_Ctx; eauto.
+  all: try eapply LocalCtxValid_set_localtype; eauto; try eapply LocalCtxValid_SizeValid_provable; eauto.
+  all: try now ltac:(eexists; split; eauto; apply LCEffEqual_refl).
 
-  - eexists; eapply add_local_effects_app_lceff; eauto.
-  - eexists; eapply LCEffEqual_trans; [ | eauto ].
-    apply LCEffEqual_add_local_effects.
+  - eexists.
+    split.
+    2: eapply add_local_effects_app_lceff; eauto.
+    rewrite <-add_local_effects_app.
+    eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+  - eexists.
+    split.
+    2:{
+      eapply LCEffEqual_trans; [ | eauto ].
+      apply LCEffEqual_add_local_effects.
+      apply LCEffEqual_sym; auto.
+    }
+    eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+    simpl.
     apply LCEffEqual_sym; auto.
-  - eexists; eapply LCEffEqual_trans; [ eauto | ]; auto.
+  - eexists.
+    split.
+    2:{
+      eapply LCEffEqual_trans; eauto.
+    }
+    eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+    -- eapply HasTypeInstruction_FirstLocalValid; eauto.
+    -- apply LCEffEqual_refl.
 Qed.
 
 Lemma Forall2_app_inv : forall {A B} {P : A -> B -> _} {l1 l1' l2 l2'},
@@ -1922,7 +1919,6 @@ Proof.
   destruct a. destruct (get_localtype n L); [destruct p|]; eapply IHtl1.
 Qed.
 
-
 Lemma composition_typing_tl S M F L es es' ts1 ts2 tl:
   HasTypeInstruction S M F L (es ++ es') (Arrow ts1 ts2) (add_local_effects L tl) ->
   exists ts ts1' ts2' ts3 qf S1 S2 tl',
@@ -1930,6 +1926,8 @@ Lemma composition_typing_tl S M F L es es' ts1 ts2 tl:
     ts2 = ts ++ ts2' /\
     Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
     QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+    QualValid (qual F) (get_hd (linear F)) /\
+    QualValid (qual F) qf /\
     let F' := update_linear_ctx (set_hd qf (linear F)) F in
     HasTypeInstruction S1 M F' L es (Arrow ts1' ts3) (add_local_effects L tl') /\
     HasTypeInstruction S2 M F' (add_local_effects L tl') es' (Arrow ts3 ts2') (add_local_effects L tl) /\
@@ -1942,12 +1940,20 @@ Proof.
     simpl in *. exists []; do 7 eexists; do 2 split; [ reflexivity | ]; split.
     rewrite app_nil_r in Htyp.
     now constructor. split. eapply QualLeq_Refl.
+    split.
+    {
+      eapply HasTypeInstruction_QualValid; eauto.
+    }
+    split.
+    {
+      eapply HasTypeInstruction_QualValid; eauto.
+    }
     split. rewrite app_nil_r in *. destruct F; simpl in *.
     rewrite set_get_hd.  eassumption.
 
     split. 
     eapply HasTypeInstruction_empty_list.
-    4:{ eapply SplitStoreTypings_EmptyHeapTyping_r. }
+    5:{ eapply SplitStoreTypings_EmptyHeapTyping_r. }
     -- destruct S; reflexivity.
     -- eapply LocalCtxValid_Function_Ctx.
        1:{ eapply HasTypeInstruction_SecondLocalValid; eauto. }
@@ -1955,16 +1961,20 @@ Proof.
     -- eapply Forall_TypeValid_Function_Ctx.
        1:{ eapply HasTypeInstruction_OutputTypesValid; eauto. }
        all: destruct F; subst; simpl in *; auto.
+    -- eapply HasTypeInstruction_QualValid_usable; eauto.
+       all: destruct F; simpl; auto.
+       rewrite get_set_hd; auto.
 
   - intros e es IH S M F L1 es_ ts1 ts2 L2 Htyp.
     simpl in *. rewrite app_assoc in Htyp. 
     edestruct composition_typing_single_strong. eassumption. destructAll.
     destruct F; simpl in *. destructAll.
     destruct (HasTypeInstruction_local_is_tl _ _ _ _ _ _ _ H).
-    subst. edestruct IH.
-    eapply ChangeEndLocalTyp.
+    destructAll.
+    edestruct IH.
+    eapply ChangeEndLocalTyp; eauto.
     { apply LCEffEqual_sym; eauto. }
-    eassumption. destructAll.
+    destructAll.
     simpl in *. rewrite set_set_hd in *.
 
     edestruct SplitStoreTypings_assoc.
@@ -1974,14 +1984,26 @@ Proof.
     end.
     eassumption. destructAll. 
 
-    do 8 eexists. split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]]. 
+    do 8 eexists. split; [ | split; [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]]]]. 
 
-    6:{ eapply ConsTyp; [ | | eassumption  ].
+    8:{ eapply ConsTyp; [ | | eassumption ].
         2:{ eapply FrameTyp. reflexivity.
             simpl. eassumption. simpl. eassumption.
             simpl. rewrite set_set_hd.
-            eapply ChangeEndLocalTyp; [ eauto | ].
-            eassumption.
+            eapply ChangeEndLocalTyp; [ | eauto | ]; [ | eauto ].
+            {
+              eapply LocalCtxValid_Function_Ctx.
+              eapply HasTypeInstruction_FirstLocalValid; eauto.
+              all: simpl; auto.
+            }
+
+            {
+              simpl.
+              rewrite get_set_hd in *.
+              auto.
+            }
+            auto.
+            
             eapply proj1.
             eapply Forall_app.
             eapply Forall_TypeValid_Function_Ctx.
@@ -1989,9 +2011,15 @@ Proof.
             all: auto. }
         eassumption. } 
 
-    5:{ eapply FrameTyp. reflexivity.
+    7:{ eapply FrameTyp. reflexivity.
         simpl. eassumption. simpl. eassumption.
         simpl. rewrite set_set_hd. eassumption.
+        {
+          simpl.
+          rewrite get_set_hd in *.
+          auto.
+        }
+        auto.
         eapply proj1.
         eapply Forall_app.
         eapply Forall_TypeValid_Function_Ctx.
@@ -2001,6 +2029,8 @@ Proof.
     reflexivity. reflexivity.
     eassumption. eassumption.
     eassumption. 
+    eassumption.
+    auto.
 Qed.
 
 Lemma split_app_single (A B : Type) (l1 l2 : list (A * B)) x1 x2:
@@ -2767,6 +2797,7 @@ Proof.
     apply size_valid_empty_implies_to_nat in H50.
     destructAll.
     rewrite H1 in H2.
+    rewrite H1 in H3.
     match goal with
     | [ H : size_to_nat ?SZ1 = Some _,
         H' : size_to_nat ?SZ2 = Some _,
@@ -5773,12 +5804,13 @@ Proof.
   - simpl; auto.
 Qed.
 
-Lemma NoCapsPretype_subst_provable : forall {pt' pt hc f ks},
+Lemma NoCapsPretype_subst_provable : forall {pt' pt hc f ks hc'},
     debruijn_subst_ext_conds f ks SPretype pt ->
-    nth_error hc (ks SPretype) = Some Heapable ->
+    nth_error hc (ks SPretype) = Some hc' ->
     NoCapsPretype hc pt' = true ->
-    NoCapsPretype (remove_nth hc (ks SPretype))
-                  (subst'_pretype (weaks' ks) pt) = true ->
+    (hc' = Heapable ->
+     NoCapsPretype (remove_nth hc (ks SPretype))
+                   (subst'_pretype (weaks' ks) pt) = true) ->
     NoCapsPretype
       (remove_nth hc (ks SPretype))
       (subst.subst'_pretype f pt')
@@ -5787,23 +5819,25 @@ Proof.
   apply
     (Pretype_ind'
        (fun pt' =>
-          forall pt hc f ks,
+          forall pt hc f ks hc',
             debruijn_subst_ext_conds f ks SPretype pt ->
-            nth_error hc (ks SPretype) = Some Heapable ->
+            nth_error hc (ks SPretype) = Some hc' ->
             NoCapsPretype hc pt' = true ->
-            NoCapsPretype (remove_nth hc (ks SPretype))
-                          (subst'_pretype (weaks' ks) pt) = true ->
+            (hc' = Heapable ->
+             NoCapsPretype (remove_nth hc (ks SPretype))
+                           (subst'_pretype (weaks' ks) pt) = true) ->
             NoCapsPretype
               (remove_nth hc (ks SPretype))
               (subst.subst'_pretype f pt')
             = true)
        (fun t =>
-          forall pt hc f ks,
+          forall pt hc f ks hc',
             debruijn_subst_ext_conds f ks SPretype pt ->
-            nth_error hc (ks SPretype) = Some Heapable ->
+            nth_error hc (ks SPretype) = Some hc' ->
             NoCapsTyp hc t = true ->
-            NoCapsPretype (remove_nth hc (ks SPretype))
-                          (subst'_pretype (weaks' ks) pt) = true ->
+            (hc' = Heapable ->
+             NoCapsPretype (remove_nth hc (ks SPretype))
+                           (subst'_pretype (weaks' ks) pt) = true) ->
             NoCapsTyp
               (remove_nth hc (ks SPretype))
               (subst.subst'_type f t)
@@ -5828,7 +5862,17 @@ Proof.
          rewrite H
        end.
        simpl.
-       rewrite plus_zero; auto.
+       rewrite plus_zero.
+       match goal with
+       | [ H : _ -> ?A |- ?A ] => apply H
+       end.
+       match goal with
+       | [ |- ?X = _ ] => destruct X; auto
+       end.
+       match goal with
+       | [ H : ?A = Some NotHeapable, H' : context[?A] |- _ ] =>
+           rewrite H in H'; inv H'
+       end.
     -- match goal with
        | [ H : context[_ <> _ _] |- _ ] => rewrite H; auto
        end.
@@ -5854,6 +5898,10 @@ Proof.
        end.
        rewrite <-subst_ext'_assoc.
        simpl.
+       intros.
+       match goal with
+       | [ H : ?A, H' : ?A -> _ |- _ ] => specialize (H' H)
+       end.
        apply NoCapsPretype_subst_weak; auto.
   - match goal with
     | [ |- context[remove_nth ?L (?F ?KND)] ] =>
@@ -5877,20 +5925,25 @@ Proof.
        end.
        rewrite <-subst_ext'_assoc.
        simpl.
+       intros.
+       match goal with
+       | [ H : ?A, H' : ?A -> _ |- _ ] => specialize (H' H)
+       end.
        apply NoCapsPretype_subst_weak_SLoc; auto.
 Qed.
 
-Lemma NoCapsPretype_subst F pt pt'  :
-  NoCapsPretype (Heapable :: F) pt' = true ->
+Lemma NoCapsPretype_subst F pt pt' hc' :
+  NoCapsPretype (hc' :: F) pt' = true ->
   NoCapsPretype F pt = true ->
   NoCapsPretype F (subst.subst'_pretype (subst'_of (ext SPretype pt id)) pt') = true.
 Proof.
-  replace F with (remove_nth (Heapable :: F) (zero SPretype)) by auto.
+  replace F with (remove_nth (hc' :: F) (zero SPretype)) by auto.
   intros.
   eapply NoCapsPretype_subst_provable; eauto.
   - apply simpl_debruijn_subst_ext_conds.
   - simpl.
-    rewrite weaks_zero_eq_id.
+    eauto.
+  - rewrite weaks_zero_eq_id.
     rewrite id_eq_var'.
     replace (subst'_pretype var' pt) with (subst_ext' var' pt) by auto.
     rewrite subst_ext'_var_e.
@@ -5899,8 +5952,8 @@ Proof.
     auto.
 Qed.
 
-Lemma NoCaps_subst F t pt :
-  NoCapsTyp (Heapable :: F) t = true ->
+Lemma NoCaps_subst F t pt hc' :
+  NoCapsTyp (hc' :: F) t = true ->
   NoCapsPretype F pt = true ->
   NoCapsTyp F (subst.subst'_type (subst'_of (ext SPretype pt id)) t) = true.
 Proof.
@@ -6515,9 +6568,12 @@ Proof.
     handle_qctx.
   - simpl_qualvalid.
     simpl_qualleq.
-    econstructor; eauto; simpl in *.
+    econstructor; simpl in *.
+    3:{
+      handle_tctx.
+    }
     -- handle_qctx.
-    -- handle_tctx.
+    -- handle_qctx.
     -- handle_qctx.
   - destyp.
     simpl in *.
@@ -6537,6 +6593,7 @@ Proof.
     -- handle_qctx.
     -- handle_qctx.
     -- handle_qctx.
+    -- handle_qctx.
     -- eapply RecVarUnderRefPretype_subst; [ | | eauto ].
        --- eapply debruijn_subst_ext_under_knd; eauto.
        --- solve_ineqs.
@@ -6544,6 +6601,7 @@ Proof.
        erewrite <-sizeOfPretype_subst_no_effect; [ eauto | | ].
        --- eapply debruijn_subst_ext_under_knd; eauto.
        --- solve_ineqs.
+    -- handle_szctx.
     -- match goal with
        | [ H : forall _ _ _ _, _ |- _ ] => eapply H
        end.
@@ -6717,6 +6775,7 @@ Proof.
     -- erewrite <-sizeOfPretype_subst_no_effect; [ eauto | | ].
        --- eauto.
        --- solve_ineqs.
+    -- eauto.
     -- eauto.
     -- eauto.
     -- eauto.
@@ -7458,7 +7517,9 @@ Proof.
 
   all: destructAll; auto.
   
-  - econstructor; eauto.
+  - econstructor.
+    3: eauto.
+    all: auto.
     eapply QualLeq_Trans; eauto.
   - econstructor; eauto.
     eapply QualLeq_Trans; [ | eauto ]; eauto.
@@ -7484,7 +7545,8 @@ Proof.
     destructAll.
     destruct_prs.
     simpl in *.
-    eauto.
+    eexists.
+    split; eauto.
 Qed.
 
 Lemma TypeValid_QualLeq : forall {F pt q q'},
@@ -8490,10 +8552,119 @@ Proof.
   lia.
 Qed.
 
-Lemma sizeOfPretype_subst : forall {pt ks newtctx tctx tctx' sz q hc partsz wholesz pt' szctx f},
+Lemma SizeValid_apply_weaks : forall {sz szctx szctx' ks},
+    SizeValid szctx sz ->
+    length szctx' = ks SSize + length szctx ->
+    SizeValid szctx' (subst'_size (weaks' ks) sz).
+Proof.
+  induction sz.
+  all: intros.
+  all:
+    match goal with
+    | [ H : SizeValid _ _ |- _ ] => inv H
+    end.
+  all:
+    match goal with
+    | [ H : @Logic.eq Size _ _ |- _ ] => inv H
+    end.
+  - simpl.
+    unfold get_var'.
+    unfold weaks'.
+    unfold debruijn.var.
+    simpl.
+    unfold zero.
+    rewrite Nat.add_0_r.
+    match goal with
+    | [ |- SizeValid ?L (SizeVar ?V) ] =>
+        assert (exists obj, nth_error L V = Some obj)
+    end.
+    {
+      apply nth_error_some_exists.
+      match goal with
+      | [ H : ?A = _ |- context[?A] ] => rewrite H
+      end.
+      match goal with
+      | [ |- ?A + ?B < ?A + ?C ] =>
+          assert (B < C); [ | lia ]
+      end.
+      eapply nth_error_Some.
+      match goal with
+      | [ H : ?A = _ |- context[?A] ] => rewrite H
+      end.
+      solve_ineqs.
+    }
+    destructAll.
+    econstructor 3; eauto.
+  - simpl.
+    econstructor 2; eauto.
+  - simpl.
+    econstructor 1; eauto.
+Qed.
+
+Lemma fold_size_SizeValid_inv : forall {l szctx sz},
+    fold_size l = Some sz ->
+    SizeValid szctx sz ->
+    Forall
+      (fun obj =>
+         exists sz',
+           obj = Some sz' /\
+           SizeValid szctx sz')
+      l.
+Proof.
+  induction l; auto.
+  intros.
+  simpl in *.
+  match goal with
+  | [ X : option Size |- _ ] => destruct X
+  end.
+  2:{
+    match goal with
+    | [ H : None = Some _ |- _ ] => inv H
+    end.
+  }
+  match goal with
+  | [ |- context[_ :: ?L] ] =>
+      remember (fold_size L) as obj; destruct obj; intros
+  end.
+  2:{
+    match goal with
+    | [ H : None = Some _ |- _ ] => inv H
+    end.
+  }
+  match goal with
+  | [ H : Some _ = Some _ |- _ ] => inv H
+  end.
+  match goal with
+  | [ H : SizeValid _ _ |- _ ] => inv H
+  end.
+  all:
+    match goal with
+    | [ H : SizePlus _ _ = _ |- _ ] => inv H
+    end.
+  match goal with
+  | [ H : forall _ _, Some ?SZ = _ -> _,
+      H' : SizeValid _ ?SZ |- _ ] =>
+      specialize (H _ _ eq_refl H')
+  end.
+  constructor; auto.
+  eauto.
+Qed.
+
+Lemma sizeOfPretype_subst : forall {pt ks newtctx tctx tctx' sz q hc partsz wholesz pt' szctxprf szctx f},
     debruijn_subst_ext_conds f ks SPretype pt' ->
     sizeOfPretype (newtctx ++ (subst'_size (weaks' ks) sz, q, hc) :: tctx') pt = Some wholesz ->
+    SizeValid
+        (szctxprf ++
+             map
+             (fun '(szs0, szs1) =>
+                (subst'_sizes (weaks' ks) szs0,
+                 subst'_sizes (weaks' ks) szs1))
+             szctx)
+        wholesz ->
+    length szctxprf = ks SSize ->
     sizeOfPretype tctx pt' = Some partsz ->
+    SizeValid szctx partsz ->
+    SizeValid szctx sz ->
     SizeLeq szctx partsz sz = Some true ->
     length newtctx = ks SPretype ->
     map (fun '(sz, q, hc) => sz) tctx' =
@@ -8503,27 +8674,44 @@ Lemma sizeOfPretype_subst : forall {pt ks newtctx tctx tctx' sz q hc partsz whol
       sizeOfPretype (newtctx ++ tctx') (subst'_pretype f pt)
       =
       Some newwholesz /\
-      forall szctxprf,
-        length szctxprf = ks SSize ->
-        SizeLeq
-          (szctxprf ++
-               map
-               (fun '(szs0, szs1) =>
-                  (subst'_sizes (weaks' ks) szs0,
-                   subst'_sizes (weaks' ks) szs1))
-               szctx)
-          newwholesz
-          wholesz
-        =
-        Some true.
+      SizeValid
+        (szctxprf ++
+             map
+             (fun '(szs0, szs1) =>
+                (subst'_sizes (weaks' ks) szs0,
+                 subst'_sizes (weaks' ks) szs1))
+             szctx)
+        newwholesz /\
+      SizeLeq
+        (szctxprf ++
+             map
+             (fun '(szs0, szs1) =>
+                (subst'_sizes (weaks' ks) szs0,
+                 subst'_sizes (weaks' ks) szs1))
+             szctx)
+        newwholesz
+        wholesz
+      =
+      Some true.
 Proof.
   apply
     (Pretype_ind'
        (fun pt =>
-          forall ks newtctx tctx tctx' sz q hc partsz wholesz pt' szctx f,
+          forall ks newtctx tctx tctx' sz q hc partsz wholesz pt' szctxprf szctx f,
             debruijn_subst_ext_conds f ks SPretype pt' ->
             sizeOfPretype (newtctx ++ (subst'_size (weaks' ks) sz, q, hc) :: tctx') pt = Some wholesz ->
+            SizeValid
+                (szctxprf ++
+                     map
+                     (fun '(szs0, szs1) =>
+                        (subst'_sizes (weaks' ks) szs0,
+                         subst'_sizes (weaks' ks) szs1))
+                     szctx)
+                wholesz ->
+            length szctxprf = ks SSize ->
             sizeOfPretype tctx pt' = Some partsz ->
+            SizeValid szctx partsz ->
+            SizeValid szctx sz ->
             SizeLeq szctx partsz sz = Some true ->
             length newtctx = ks SPretype ->
             map (fun '(sz, q, hc) => sz) tctx' =
@@ -8533,25 +8721,41 @@ Proof.
               sizeOfPretype (newtctx ++ tctx') (subst'_pretype f pt)
               =
               Some newwholesz /\
-              forall szctxprf,
-                length szctxprf = ks SSize ->
-                SizeLeq
-                  (szctxprf
-                     ++
+              SizeValid
+                (szctxprf ++
                      map
                      (fun '(szs0, szs1) =>
                         (subst'_sizes (weaks' ks) szs0,
                          subst'_sizes (weaks' ks) szs1))
                      szctx)
-                  newwholesz
-                  wholesz
-                =
-                Some true)
+                newwholesz /\
+              SizeLeq
+                (szctxprf ++
+                     map
+                     (fun '(szs0, szs1) =>
+                        (subst'_sizes (weaks' ks) szs0,
+                         subst'_sizes (weaks' ks) szs1))
+                     szctx)
+                newwholesz
+                wholesz
+              =
+              Some true)
        (fun t =>
-          forall ks newtctx tctx tctx' sz q hc partsz wholesz pt' szctx f,
+          forall ks newtctx tctx tctx' sz q hc partsz wholesz pt' szctxprf szctx f,
             debruijn_subst_ext_conds f ks SPretype pt' ->
             sizeOfType (newtctx ++ (subst'_size (weaks' ks) sz, q, hc) :: tctx') t = Some wholesz ->
+            SizeValid
+                (szctxprf ++
+                     map
+                     (fun '(szs0, szs1) =>
+                        (subst'_sizes (weaks' ks) szs0,
+                         subst'_sizes (weaks' ks) szs1))
+                     szctx)
+                wholesz ->
+            length szctxprf = ks SSize ->
             sizeOfPretype tctx pt' = Some partsz ->
+            SizeValid szctx partsz ->
+            SizeValid szctx sz ->
             SizeLeq szctx partsz sz = Some true ->
             length newtctx = ks SPretype ->
             map (fun '(sz, q, hc) => sz) tctx' =
@@ -8561,26 +8765,31 @@ Proof.
               sizeOfType (newtctx ++ tctx') (subst'_type f t)
               =
               Some newwholesz /\
-              forall szctxprf,
-                length szctxprf = ks SSize ->
-                SizeLeq
-                  (szctxprf
-                     ++
+              SizeValid
+                (szctxprf ++
                      map
                      (fun '(szs0, szs1) =>
                         (subst'_sizes (weaks' ks) szs0,
                          subst'_sizes (weaks' ks) szs1))
                      szctx)
-                  newwholesz
-                  wholesz
-                =
-                Some true)
+                newwholesz /\
+              SizeLeq
+                (szctxprf ++
+                     map
+                     (fun '(szs0, szs1) =>
+                        (subst'_sizes (weaks' ks) szs0,
+                         subst'_sizes (weaks' ks) szs1))
+                     szctx)
+                newwholesz
+                wholesz
+              =
+              Some true)
        (fun _ => True)
        (fun _ => True)
        (fun _ => True)).
   all: intros; simpl in *; eauto.
 
-  all: try now ltac:(eexists; split; eauto; intros; apply SizeLeq_Refl).
+  all: try now ltac:(eexists; split; eauto; split; auto; apply SizeLeq_Refl).
   
   - unfold get_var'.
     unfold debruijn_subst_ext_conds in *.
@@ -8602,21 +8811,25 @@ Proof.
        | [ H : ?X = Some _ |- context[?X] ] => rewrite H; simpl
        end.
        eexists; split; eauto.
-       intros.
-       match goal with
-       | [ H : option_map _ ?X = Some _ |- _ ] =>
-         remember X as obj; revert H; generalize (eq_sym Heqobj);
-         case obj; intros; simpl in *;
-         match goal with
-         | [ H' : _ = Some _ |- _ ] => inv H'
-         end
-       end.
-       destruct_prs.
-       match goal with
-       | [ H : nth_error _ _ = Some _ |- _ ] =>
-         rewrite nth_error_prefix_appliable in H; auto; inv H
-       end.
-       apply SizeLeq_add_constraints_gen; auto.
+       split.
+       --- eapply SizeValid_apply_weaks; eauto.
+           rewrite app_length.
+           rewrite map_length.
+           lia.
+       --- match goal with
+           | [ H : option_map _ ?X = Some _ |- _ ] =>
+             remember X as obj; revert H; generalize (eq_sym Heqobj);
+             case obj; intros; simpl in *;
+             match goal with
+             | [ H' : _ = Some _ |- _ ] => inv H'
+             end
+           end.
+           destruct_prs.
+           match goal with
+           | [ H : nth_error _ _ = Some _ |- _ ] =>
+             rewrite nth_error_prefix_appliable in H; auto; inv H
+           end.
+           apply SizeLeq_add_constraints_gen; auto.
     -- simpl.
        erewrite nth_error_shift_down_appliable; auto.
        2:{
@@ -8630,7 +8843,7 @@ Proof.
        | [ H : option_map _ _ = Some ?X |- _ ] => exists X
        end.
        split; eauto.
-       intros.
+       split; auto.
        apply SizeLeq_Refl.
   - rewrite map_map.
     match goal with
@@ -8638,7 +8851,8 @@ Proof.
         H'' : debruijn_subst_ext_conds _ ?KS _ _
         |- context[fold_size (map ?F2 ?L)] ] =>
       match goal with
-      | [ |- context[SizeLeq (_ ++ ?C) _ _] ] =>
+      | [ |- context[SizeLeq ?CTX _ _] ] =>
+        let H' := fresh "H" in
         assert (H' :
                   Forall
                     (fun t =>
@@ -8646,21 +8860,20 @@ Proof.
                          F t = Some subsz /\
                          exists newsubsz,
                            F2 t = Some newsubsz /\
-                           forall szctxprf,
-                             length szctxprf = KS SSize ->
-                             SizeLeq
-                               (szctxprf ++ C) newsubsz subsz
-                             =
-                             Some true)
+                           SizeValid CTX newsubsz /\
+                           SizeLeq CTX newsubsz subsz
+                           =
+                           Some true)
                     L);
         [ | revert H' ]
       end
     end.
     { prepare_Forall.
       match goal with
-      | [ H : fold_size _ = Some _ |- _ ] =>
-        apply fold_size_Some in H
+      | [ H : fold_size _ = Some ?SZ, H' : SizeValid _ ?SZ |- _ ] =>
+        specialize (fold_size_SizeValid_inv H H')
       end.
+      intros.
       match goal with
       | [ H : Forall _ (map ?F ?L), H' : List.In ?X ?L |- _ ] =>
         let H0 := fresh "H" in
@@ -8673,14 +8886,19 @@ Proof.
     | [ H : fold_size _ = Some ?X |- _ ] => revert H
     end.
     match goal with
-    | [ |- context[SizeLeq _ _ ?SZ] ] => revert SZ
+    | [ H : SizeValid _ ?SZ |- context[SizeLeq _ _ ?SZ] ] =>
+        revert H; revert SZ
     end.
     clear.
     match goal with
-    | [ |- forall _, _ -> Forall _ ?L -> _ ] =>
+    | [ |- forall _, _ -> _ -> Forall _ ?L -> _ ] =>
       induction L; intros; simpl in *
     end.
-    1:{ eexists; split; eauto; intros; apply SizeLeq_Refl. }
+    1:{
+      eexists; split; eauto.
+      split; auto.
+      apply SizeLeq_Refl.
+    }
     match goal with
     | [ H : Forall _ _ |- _ ] => inv H
     end.
@@ -8704,19 +8922,28 @@ Proof.
       end
     end.
     match goal with
-    | [ H : forall _, _ -> _,
-        H' : fold_size _ = Some _, H'' : Forall _ _ |- _ ] =>
-      specialize (H _ H' H'')
+    | [ H : SizeValid _ (SizePlus _ _) |- _ ] => inv H
+    end.
+    all:
+      match goal with
+      | [ H : SizePlus _ _ = _ |- _ ] => inv H
+      end.
+    match goal with
+    | [ H : forall _, _ -> _, H''' : SizeValid _ ?SZ,
+        H' : fold_size _ = Some ?SZ, H'' : Forall _ _ |- _ ] =>
+      specialize (H _ H''' H' H'')
     end.
     destructAll.
     match goal with
     | [ H : ?X = Some _ |- _ ] => rewrite H
     end.
     eexists; split; eauto; intros.
-    apply SizeLeq_SizePlus; auto.
+    split.
+    -- econstructor 2; eauto.
+    -- apply SizeLeq_SizePlus; auto.
   - rewrite app_comm_cons.
     match goal with
-    | [ |- context[?F SSize] ] =>
+    | [ H : context[?F SSize] |- _ ] =>
       replace (F SSize) with
           ((plus (sing SPretype 1) F) SSize)
     end.
@@ -8749,6 +8976,17 @@ Proof.
        intros.
        apply subst_size_only_size_matters.
        unfold plus; simpl; lia.
+    -- match goal with
+       | [ |- context[subst'_sizes (weaks' (plus (sing SPretype 1) ?F))] ] =>
+         replace (subst'_sizes (@weaks' Ind Kind VarKind (plus (@sing Ind EqI SPretype 1) F))) with (subst'_sizes (weaks' F)); eauto
+       end.
+       apply FunctionalExtensionality.functional_extensionality.
+       intros.
+       unfold subst'_sizes.
+       apply map_ext.
+       intros.
+       apply subst_size_only_size_matters.
+       unfold plus; simpl; lia.
     -- unfold plus; simpl.
        match goal with
        | [ H : ?A = _ |- context[?A] ] => rewrite H; auto
@@ -8762,7 +9000,7 @@ Proof.
        apply subst_size_only_size_matters.
        unfold plus; simpl; lia.
   - match goal with
-    | [ |- context[?F SSize] ] =>
+    | [ H : context[?F SSize] |- _ ] =>
       replace (F SSize) with
           ((plus (sing SLoc 1) F) SSize)
     end.
@@ -8790,6 +9028,17 @@ Proof.
          replace (subst'_size (@weaks' Ind Kind VarKind (plus (@sing Ind EqI SLoc 1) F))) with (subst'_size (weaks' F)); eauto
        end.
        apply FunctionalExtensionality.functional_extensionality.
+       intros.
+       apply subst_size_only_size_matters.
+       unfold plus; simpl; lia.
+    -- match goal with
+       | [ |- context[subst'_sizes (weaks' (plus (sing ?KND 1) ?F))] ] =>
+         replace (subst'_sizes (@weaks' Ind Kind VarKind (plus (@sing Ind EqI KND 1) F))) with (subst'_sizes (weaks' F)); eauto
+       end.
+       apply FunctionalExtensionality.functional_extensionality.
+       intros.
+       unfold subst'_sizes.
+       apply map_ext.
        intros.
        apply subst_size_only_size_matters.
        unfold plus; simpl; lia.
@@ -8824,31 +9073,48 @@ Proof.
   apply SizeLeq_Refl.
 Qed.
 
-Lemma fold_size_SizeLeq_ctx : forall {l l' szctx sz},
-    Forall2
-      (fun obj1 obj2 =>
-         exists sz1 sz2,
-           obj1 = Some sz1 /\
-           obj2 = Some sz2 /\
-           SizeLeq szctx sz1 sz2 = Some true)
-      l l' ->
-    fold_size l' = Some sz ->
-    exists sz' : Size,
-      fold_size l = Some sz' /\
+Lemma prove_using_unknown_lemma : forall {A B : Prop},
+    B ->
+    (B -> A /\ B) ->
+    A.
+Proof.
+  intros.
+  match goal with
+  | [ H : ?B, H' : ?B -> _ |- _ ] => specialize (H' H)
+  end.
+  destructAll.
+  auto.
+Qed.
+
+Lemma fold_size_SizeValid_SizeLeq_inv : forall {A} {l : list A} {szctx f1 f2 sz},
+    fold_size (map f1 l) = Some sz ->
+    Forall
+      (fun obj =>
+         exists sz' sz'',
+           f1 obj = Some sz' /\
+           SizeValid szctx sz' /\
+           f2 obj = Some sz'' /\
+           SizeValid szctx sz'' /\
+           SizeLeq szctx sz'' sz' = Some true)
+      l ->
+    exists sz',
+      fold_size (map f2 l) = Some sz' /\
+      SizeValid szctx sz' /\
       SizeLeq szctx sz' sz = Some true.
 Proof.
   induction l; intros; simpl in *.
-  - eexists; split; eauto.
-    apply SizeLeq_Bottom.
-  - match goal with
-    | [ H : Forall2 _ _ _ |- _ ] => inv H
-    end.
-    destructAll; subst.
-    simpl in *.
+  - eexists.
+    split; eauto.
     match goal with
-    | [ H : context[fold_size ?L] |- _ ] =>
-      remember (fold_size L) as obj;
-      generalize (eq_sym Heqobj); revert H; case obj; intros
+    | [ H : Some _ = Some _ |- _ ] => inv H
+    end.
+    split.
+    -- econstructor; eauto.
+    -- apply SizeLeq_Refl.
+  - match goal with
+    | [ X : ?A, F1 : ?A -> option _,
+        H : context[map ?F] |- _ ] =>
+        remember (F X) as obj; apply eq_sym in Heqobj; destruct obj
     end.
     2:{
       match goal with
@@ -8856,31 +9122,50 @@ Proof.
       end.
     }
     match goal with
-    | [ H : ?A = fold_size ?L, H' : fold_size ?L = Some _ |- _ ] =>
-      rewrite H' in H; subst
+    | [ X : ?A, F1 : ?A -> option _,
+        H : context[map ?F ?L] |- _ ] =>
+        remember (fold_size (map F L)) as obj2; apply eq_sym in Heqobj2; destruct obj2
     end.
+    all:
+      match goal with
+      | [ H : _ = Some _ |- _ ] => inv H
+      end.
     match goal with
-    | [ H : Some _ = Some _ |- _ ] => inv H
+    | [ H : Forall _ _ |- _ ] => inv H
     end.
-    match goal with
-    | [ H : forall _ _ _, _,
-        H' : Forall2 _ _ _,
-        H'' : fold_size _ = Some _ |- _ ] =>
-      specialize (H _ _ _ H' H'')
-    end.
+    eapply prove_using_unknown_lemma.
+    {
+      match goal with
+      | [ H : forall _ _, _ |- _ ] => eapply H; eauto
+      end.
+    }
+    intros.
+    split; auto.
     destructAll.
-    match goal with
-    | [ H : ?X = Some _ |- context[?X] ] => rewrite H
-    end.
+    do 2 match goal with
+         | [ H : ?A = _ |- context[?A] ] => rewrite H
+         end.
     eexists; split; eauto.
-    apply SizeLeq_SizePlus; auto.
+    split.
+    -- econstructor 2; eauto.
+    -- match goal with
+       | [ H : ?A = _, H' : ?A = _ |- _ ] =>
+           rewrite H in H'; inv H'
+       end.
+       apply SizeLeq_SizePlus; auto.
 Qed.
+
+Definition sizes_substitutable szctx sz1 sz2 :=
+  sz1 = sz2 \/ (SizeLeq szctx sz1 (SizeConst 0) = Some true /\ SizeValid szctx sz1) \/ (SizeValid szctx sz1 /\ SizeValid szctx sz2).
 
 Lemma sizeOfPretype_SizeLeq_ctx : forall {pt szctx tctx tctx' sz},
     SizeLeq_tctx szctx tctx' tctx ->
+    Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable szctx sz1 sz2) tctx' tctx ->
     sizeOfPretype tctx pt = Some sz ->
+    SizeValid szctx sz ->
     exists sz',
       sizeOfPretype tctx' pt = Some sz' /\
+      SizeValid szctx sz' /\
       SizeLeq szctx sz' sz = Some true.
 Proof.
   apply
@@ -8888,16 +9173,22 @@ Proof.
        (fun pt =>
           forall szctx tctx tctx' sz,
             SizeLeq_tctx szctx tctx' tctx ->
+            Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable szctx sz1 sz2) tctx' tctx ->
             sizeOfPretype tctx pt = Some sz ->
+            SizeValid szctx sz ->
             exists sz',
               sizeOfPretype tctx' pt = Some sz' /\
+              SizeValid szctx sz' /\
               SizeLeq szctx sz' sz = Some true)
        (fun t =>
           forall szctx tctx tctx' sz,
             SizeLeq_tctx szctx tctx' tctx ->
+            Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable szctx sz1 sz2) tctx' tctx ->
             sizeOfType tctx t = Some sz ->
+            SizeValid szctx sz ->
             exists sz',
               sizeOfType tctx' t = Some sz' /\
+              SizeValid szctx sz' /\
               SizeLeq szctx sz' sz = Some true)
        (fun _ => True)
        (fun _ => True)
@@ -8909,8 +9200,8 @@ Proof.
       match goal with
       | [ H : Some _ = Some _ |- _ ] => inv H; auto
       end;
-      eexists; split; eauto;
-      apply SizeLeq_Refl).
+      eexists; repeat split; eauto;
+      try apply SizeLeq_Refl; try econstructor; eauto).
 
   - match goal with
     | [ X : NumType |- _ ] => destruct X
@@ -8928,7 +9219,8 @@ Proof.
       | [ H : Some _ = Some _ |- _ ] => inv H
       end.
     all: eexists; split; eauto.
-    all: apply SizeLeq_Refl.
+    all: split; [ | apply SizeLeq_Refl ].
+    all: econstructor; eauto.
   - match goal with
     | [ H : option_map _ ?X = _ |- _ ] =>
       remember X as obj; generalize (eq_sym Heqobj); revert H;
@@ -8962,58 +9254,59 @@ Proof.
     unfold SizeLeq_tctx in *.
     match goal with
     | [ H : Forall2 _ ?L1 ?L2,
+        H''' : Forall2 _ ?L1 ?L2,
         H' : nth_error ?L1 _ = _,
         H'' : nth_error ?L2 _ = _ |- _ ] =>
-      specialize (forall2_nth_error _ _ _ _ _ _ H H' H'')
+      specialize (forall2_nth_error _ _ _ _ _ _ H H' H'');
+      specialize (forall2_nth_error _ _ _ _ _ _ H''' H' H'')
     end.
     intros; simpl in *; destructAll.
     match goal with
-    | [ H : Some _ = Some _ |- _ ] => inv H; auto
+    | [ H : Some _ = Some _ |- _ ] => inv H
     end.
-  - eapply fold_size_SizeLeq_ctx; [ | eauto ].
-    apply forall2_nth_error_inv.
-    2:{ do 2 rewrite map_length; auto. }
-    intros.
-    repeat match goal with
-           | [ H : nth_error (map _ _) _ = _ |- _ ] =>
-             apply nth_error_map_inv in H
-           end.
-    destructAll.
-    match goal with
-    | [ H : ?A = _, H' : ?A = _ |- _ ] =>
-      rewrite H in H'; inv H'
-    end.
-    match goal with
-    | [ H : nth_error _ _ = _ |- _ ] => apply nth_error_In in H
-    end.
-    match goal with
-    | [ H : fold_size (map ?F _) = _, H' : List.In ?X _ |- _ ] =>
-      let H' := fresh "H" in
-      assert (H' : exists y, F X = Some y);
-      [ apply fold_size_Some in H; rewrite Forall_forall in H;
-        eapply H | ]
-    end.
-    { apply in_map; auto. }
-    destructAll.
-    match goal with
-    | [ H : Forall _ ?L, H' : List.In _ ?L |- _ ] =>
-      rewrite Forall_forall in H; specialize (H _ H'); auto
-    end.
-    match goal with
-    | [ H : forall _ _ _ _, _,
-        H' : SizeLeq_tctx _ _ _,
-        H'' : sizeOfType _ _ = Some _ |- _ ] =>
-      specialize (H _ _ _ _ H' H'')
-    end.
-    destructAll.
-    do 2 eexists.
-    do 2 ltac:(split; eauto).
-  - match goal with
-    | [ H : forall _, _ |- _ ] => eapply H; [ | eauto ]
-    end.
-    constructor; auto.
     split; auto.
-    apply SizeLeq_Refl.
+    match goal with
+    | [ H : sizes_substitutable _ _ _ |- _ ] => inv H; auto
+    end.
+    match goal with
+    | [ H : _ \/ _ |- _ ] => inv H
+    end.
+    all: destructAll; auto.
+  - eapply fold_size_SizeValid_SizeLeq_inv; eauto.
+    match goal with
+    | [ H : fold_size _ = Some ?SZ, H' : SizeValid _ ?SZ |- _ ] =>
+        specialize (fold_size_SizeValid_inv H H')
+    end.
+    intros.
+    prepare_Forall.
+    match goal with
+    | [ H : Forall _ (map ?F _), H' : List.In ?EL ?L |- _ ] =>
+        specialize (in_map F _ _ H')
+    end.
+    intros.
+    rewrite Forall_forall in *.
+    match goal with
+    | [ H : forall _, List.In _ ?L -> _, H' : List.In _ ?L |- _ ] =>
+	  specialize (H _ H')
+    end.
+    destructAll.
+    simpl in *.
+    eapply prove_using_unknown_lemma.
+    {
+      match goal with
+      | [ H : forall _ _ _ _, _ |- _ ] => eapply H; eauto
+      end.
+    }
+    intros; split; auto.
+    destructAll.
+    do 2 eexists; eauto.
+  - match goal with
+    | [ H : forall _, _ |- _ ] => eapply H; eauto
+    end.
+    all: constructor; auto.
+    -- split; auto.
+       apply SizeLeq_Refl.
+    -- left; auto.
 Qed.
 
 Lemma size_update_type_ctx : forall {F tctx},
@@ -9028,25 +9321,387 @@ Proof.
   destruct F; auto.
 Qed.
 
+Lemma ks_of_kvs_subst_kindvars : forall {kvs su},
+    ks_of_kvs (subst'_kindvars su kvs) =
+    ks_of_kvs kvs.
+Proof.
+  induction kvs; simpl; auto.
+  intros.
+  match goal with
+  | [ X : KindVar |- _ ] => destruct X; simpl
+  end.
+  all: rewrite IHkvs; auto.
+Qed.
+
+Lemma SizeValid_subst_weak_size : forall {sz f F kvs szs0 szs1},
+    debruijn_weaks_conds f (ks_of_kvs kvs) (sing SSize 1) ->
+    SizeValid (size (add_constraints F kvs)) sz ->
+    SizeValid
+      (size
+         (add_constraints
+            (subst'_function_ctx (subst'_of (weak SSize))
+                                 (update_size_ctx ((szs0, szs1) :: size F) F))
+            (subst'_kindvars (subst'_of (weak SSize)) kvs)))
+      (subst'_size f sz).
+Proof.
+  induction sz.
+  intros.
+  - rewrite add_constraints_to_ks_of_kvs in *; simpl in *.
+    unfold get_var'.
+    unfold debruijn_weaks_conds in *.
+    destructAll.
+    match goal with
+    | [ H : context[_ >= ?KS _ -> ?F _ _ _ = _],
+        H'' : context[_ < ?KS _ -> ?F _ _ _ = _]
+        |- SizeValid _ (?F ?KND ?V _) ] =>
+      let H' := fresh "H" in
+      assert (H' : V < KS KND \/ V >= KS KND) by apply Nat.lt_ge_cases;
+      case H'; intros; [ rewrite H'' | rewrite H ]; auto
+    end.
+    all: simpl.
+    all:
+      match goal with
+      | [ |- SizeValid ?L (SizeVar ?SZ) ] =>
+        let H := fresh "H" in
+        assert (H : SZ < length L);
+        [ | apply nth_error_some_exists in H; destructAll;
+            eapply SizeVarValid; eauto ]
+      end.
+    all: rewrite app_length.
+    all: repeat rewrite map_length.
+    all: rewrite length_collect_szctx.
+    all: rewrite ks_of_kvs_subst_kindvars.
+    -- lia.
+    -- destruct F; subst; simpl in *.
+       match goal with
+       | [ H : SizeValid _ _ |- _ ] => inv H
+       end.
+       all:
+         match goal with
+         | [ H : SizeVar _ = _ |- _ ] => inv H
+         end.
+       match goal with
+       | [ H : nth_error _ _ = Some _ |- _ ] =>
+         apply nth_error_Some_length in H
+       end.
+       rewrite app_length in *.
+       rewrite map_length in *.
+       rewrite length_collect_szctx in *.
+       lia.
+  - intros.
+    match goal with
+    | [ H : SizeValid _ _ |- _ ] => inv H
+    end.
+    all:
+      match goal with
+      | [ H : SizePlus _ _ = _ |- _ ] => inv H
+      end.
+    eapply SizePlusValid; simpl; eauto.
+  - econstructor; simpl; eauto.
+Qed.
+
+Lemma model_satisfies_context_from_idx_desc : forall {A B} {leq : B -> B -> Prop} {lift_model : (nat -> B) -> (A -> B)} {model ctx idx},
+    model_satisfies_context_from_idx leq lift_model model ctx idx <->
+    (forall v l0 l1,
+        nth_error ctx v = Some (l0, l1) ->
+        Forall
+          (fun obj =>
+             leq (lift_model model obj) (model (idx + v)))
+          l0 /\
+        Forall
+          (fun obj =>
+             leq (model (idx + v)) (lift_model model obj))
+          l1).
+Proof.
+  intros; split; revert idx; induction ctx; intros; simpl in *.
+  - destruct v; simpl in *.
+    all:
+      match goal with
+      | [ H : None = Some _ |- _ ] => inv H
+      end.
+  - destruct_prs; destructAll.
+    destruct v; simpl in *.
+    -- match goal with
+       | [ H : Some _ = Some _ |- _ ] => inv H
+       end.
+       repeat rewrite Nat.add_0_r; auto.
+    -- repeat rewrite <-Nat.add_succ_comm.
+       apply IHctx; auto.
+  - auto.
+  - destruct_prs.
+    match goal with
+    | [ H : forall _ _ _, _ |- _ ] =>
+      generalize (H 0 _ _ eq_refl); intros; simpl in *
+    end.
+    destructAll.
+    repeat rewrite Nat.add_0_r in *.
+    split; auto.
+    split; auto.
+    apply IHctx; intros.
+    repeat rewrite Nat.add_succ_comm.
+    match goal with
+    | [ H : forall _ _ _, _ |- _ ] => apply H
+    end.
+    simpl; auto.
+Qed.
+
+Lemma model_satisfies_context_desc : forall {A B} {leq : B -> B -> Prop} {lift_model : (nat -> B) -> (A -> B)} {model ctx},
+    model_satisfies_context leq lift_model model ctx <->
+    (forall v l0 l1,
+        nth_error ctx v = Some (l0, l1) ->
+        Forall
+          (fun obj =>
+             leq (lift_model model obj) (model v))
+          l0 /\
+        Forall
+          (fun obj =>
+             leq (model v) (lift_model model obj))
+          l1).
+Proof.
+  unfold model_satisfies_context.
+  intros.
+  rewrite model_satisfies_context_from_idx_desc.
+  simpl; split; auto.
+Qed.
+
+Lemma ctx_imp_leq_map : forall {A B} {leq : B -> B -> Prop} {lift_model : (nat -> B) -> (A -> B)} {ctx ctx' obj1 obj2 f},
+    (forall model,
+        model_satisfies_context leq lift_model model ctx' ->
+        exists model',
+          model_satisfies_context leq lift_model model' ctx /\
+          lift_model model' =
+          (fun obj => lift_model model (f obj))) ->
+    ctx_imp_leq leq lift_model ctx obj1 obj2 ->
+    ctx_imp_leq leq lift_model ctx' (f obj1) (f obj2).
+Proof.
+  unfold ctx_imp_leq.
+  intros.
+  match goal with
+  | [ H : forall _, model_satisfies_context _ _ _ _ -> _,
+      H' : model_satisfies_context _ _ _ _ |- _ ] =>
+    specialize (H _ H')
+  end.
+  destructAll.
+  match goal with
+  | [ H : forall _, model_satisfies_context _ _ _ ?A -> _,
+      H' : model_satisfies_context _ _ _ ?A |- _ ] =>
+    specialize (H _ H')
+  end.
+  match goal with
+  | [ H : ?A = _, H' : context[?A] |- _ ] => rewrite H in H'; auto
+  end.
+Qed.
+
+Lemma subst_weaks_weak_comm : forall {f ks knd},
+    debruijn_weaks_conds f ks (sing knd 1) ->
+    f ∘' (weaks' ks) =
+    (weaks' ks) ∘' (subst'_of (weak knd)).
+Proof.
+  intros.
+  unfold debruijn_weaks_conds in *.
+  destructAll.
+  apply FunctionalExtensionality.functional_extensionality_dep.
+  intros.
+  apply FunctionalExtensionality.functional_extensionality.
+  intros.
+  apply FunctionalExtensionality.functional_extensionality.
+  intros.
+  simpl.
+  unfold weak.
+  unfold weaks.
+  unfold weaks' at 1.
+  destruct x; simpl.
+  all: unfold get_var'.
+  all: unfold under_ks'.
+  all:
+    do 2 match goal with
+         | [ |- context[if ?A then _ else _] ] =>
+           replace A with false; [ | apply eq_sym; rewrite OrdersEx.Nat_as_OT.ltb_ge; lia ]
+         end.
+  all: unfold weaks'; simpl.
+  all:
+    match goal with
+    | [ H : context[_ >= _ -> _] |- _ ] => rewrite H; try lia
+    end.
+  all: unfold var.
+  all: simpl.
+  all:
+    match goal with
+    | [ |- _ ?A = _ ?B ] => replace B with A; auto
+    end.
+  all: rewrite plus_zero.
+  all: unfold zero.
+  all: lia.
+Qed.
+
+Lemma SizeLeq_weaks_gen : forall {f ks' ks sz sz' szctx' prf szctx},
+    debruijn_weaks_conds f ks' ks ->
+    length szctx' = ks' SSize ->
+    length prf = ks SSize ->
+    SizeLeq (szctx' ++ szctx) sz sz' = Some true ->
+    SizeLeq
+      ((map
+          (fun '(szs0, szs1) =>
+             (subst'_sizes f szs0, subst'_sizes f szs1))
+          szctx')
+         ++
+         prf
+         ++
+         map
+         (fun '(szs2, szs3) =>
+            (subst'_sizes f szs2, subst'_sizes f szs3))
+         szctx)
+      (subst'_size f sz)
+      (subst'_size f sz') =
+    Some true.
+Proof.
+  intros.
+  rewrite SizeLeq_desc in *.
+  eapply ctx_imp_leq_map; eauto.
+  intros.
+  match goal with
+  | [ H : model_satisfies_context _ _ ?M _,
+      H' : debruijn_weaks_conds _ ?KSP ?KS |- _ ] =>
+    exists (fun v => M (if v <? KSP SSize then v else v + KS SSize))
+  end.
+  match goal with
+  | [ |- ?A /\ ?B ] =>
+    let H := fresh "H" in assert (H : B); [ | split; auto ]
+  end.
+  { apply FunctionalExtensionality.functional_extensionality.
+    intros; subst.
+    match goal with
+    | [ H : debruijn_weaks_conds _ _ _ |- _ ] => revert H
+    end.
+    clear.
+    match goal with
+    | [ X : Size |- _ ] => induction X
+    end.
+    all: simpl in *; auto.
+    unfold debruijn_weaks_conds.
+    intros.
+    destructAll.
+    unfold get_var'.
+    match goal with
+    | [ |- context[?A <? ?B] ] =>
+      remember (A <? B) as obj; specialize (eq_sym Heqobj); case obj; intros
+    end.
+    - rewrite OrdersEx.Nat_as_OT.ltb_lt in *.
+      match goal with
+      | [ H : context[_ < _ -> _] |- _ ] => rewrite H; auto
+      end.
+    - rewrite OrdersEx.Nat_as_OT.ltb_ge in *.
+      match goal with
+      | [ H : context[_ >= _ -> _] |- _ ] => rewrite H; auto
+      end.
+      simpl.
+      unfold zero.
+      rewrite <-plus_n_O.
+      rewrite Nat.add_comm; auto. }
+  
+  rewrite model_satisfies_context_desc in *.
+  match goal with
+  | [ H : model_satisfies_context _ _ _ _ |- _ ] =>
+    rewrite model_satisfies_context_desc in H
+  end.
+  intros.
+  match goal with
+  | [ H : interp_size _ = _ |- _ ] => rewrite H
+  end.
+  match goal with
+  | [ H : forall _ _ _, nth_error ?L _ = Some _ -> _,
+      H' : nth_error _ ?IDX = Some (?L1, ?L2),
+      H'' : debruijn_weaks_conds ?F ?KSP ?KS |- _ ] =>
+    let H0 := fresh "H" in
+    assert (H0 : nth_error
+                   L
+                   (if IDX <? KSP SSize then IDX else IDX + KS SSize)
+                 =
+                 Some
+                   (subst'_sizes f L1,
+                    subst'_sizes f L2));
+    [ | specialize (H _ _ _ H0) ]
+  end.
+  { match goal with
+    | [ |- context[?A <? ?B] ] =>
+      remember (A <? B) as obj; specialize (eq_sym Heqobj); case obj; intros
+    end.
+    - rewrite OrdersEx.Nat_as_OT.ltb_lt in *.
+      rewrite nth_error_app1 in *; try lia.
+      2:{ rewrite map_length; lia. }
+      erewrite nth_error_map; eauto.
+      simpl; auto.
+    - rewrite OrdersEx.Nat_as_OT.ltb_ge in *.
+      rewrite nth_error_app2 in *; try lia.
+      2:{ rewrite map_length; lia. }
+      rewrite map_length.
+      rewrite nth_error_app2 by lia.
+      match goal with
+      | [ H : nth_error _ ?IDX = Some _ 
+          |- nth_error _ ?IDX2 = Some _ ] =>
+        replace IDX2 with IDX by lia
+      end.
+      erewrite nth_error_map; eauto.
+      simpl; auto. }
+  destructAll.
+  split; prepare_Forall.
+  all: rewrite Forall_forall in *.
+  all: unfold subst'_sizes in *.
+  all:
+    match goal with
+    | [ H : context[List.In _ (map ?F ?B)], H' : List.In ?A ?B |- _ ] =>
+      let H'' := fresh "H" in
+      assert (H'' : List.In (F A) (map F B)) by ltac:(apply in_map; auto);
+      specialize (H _ H''); auto
+    end.
+Qed.
+
+Lemma SizeLeq_weaks : forall {ks sz sz' prf szctx},
+    length prf = ks SSize ->
+    SizeLeq szctx sz sz' = Some true ->
+    SizeLeq
+      (prf ++
+           map
+           (fun '(szs2, szs3) =>
+              (subst'_sizes (weaks' ks) szs2,
+               subst'_sizes (weaks' ks) szs3)) szctx)
+      (subst'_size (weaks' ks) sz)
+      (subst'_size (weaks' ks) sz') =
+    Some true.
+Proof.
+  intros.
+  match goal with
+  | [ |- SizeLeq (?A ++ map ?F ?B) _ _ = _ ] =>
+    replace (A ++ map F B) with (map F [] ++ A ++ map F B) by auto
+  end.
+  eapply SizeLeq_weaks_gen; eauto.
+  - apply simpl_debruijn_weak_conds.
+  - auto.
+Qed.
+
 Lemma TypeValid_SizeLeq_provable :
   (forall F t,
       TypeValid F t ->
       forall tctx,
+        Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable (size F) sz1 sz2) tctx (type F) ->
         SizeLeq_tctx (size F) tctx (type F) ->
         TypeValid (update_type_ctx tctx F) t) /\
   (forall F t,
       HeapTypeValid F t ->
       forall tctx,
+        Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable (size F) sz1 sz2) tctx (type F) ->
         SizeLeq_tctx (size F) tctx (type F) ->
         HeapTypeValid (update_type_ctx tctx F) t) /\
   (forall F t,
       ArrowTypeValid F t ->
       forall tctx,
+        Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable (size F) sz1 sz2) tctx (type F) ->
         SizeLeq_tctx (size F) tctx (type F) ->
         ArrowTypeValid (update_type_ctx tctx F) t) /\
   (forall F t,
       FunTypeValid F t ->
       forall tctx,
+        Forall2 (fun '(sz1, _, _) '(sz2, _, _) => sizes_substitutable (size F) sz1 sz2) tctx (type F) ->
         SizeLeq_tctx (size F) tctx (type F) ->
         FunTypeValid (update_type_ctx tctx F) t).
 Proof.
@@ -9097,18 +9752,35 @@ Proof.
       let H0 := fresh "H" in
       assert (H0 : exists sz',
                  sizeOfPretype (type F) PT = Some sz' /\
+                 SizeValid (size F2) sz' /\
                  SizeLeq (size F2) sz' SZ = Some true)
     end.
     { eapply sizeOfPretype_SizeLeq_ctx; eauto.
-      rewrite type_update_type_ctx; auto. }
+      all: rewrite type_update_type_ctx; auto. }
     destructAll.
     econstructor; eauto.
     all: try rewrite qual_update_type_ctx; auto.
+    1:{
+      rewrite size_update_type_ctx; auto.
+    } 
     rewrite type_update_type_ctx.
     match goal with
     | [ H : forall _, _ -> _ |- context[(?SZ, ?Q, ?HC) :: ?T] ] =>
       specialize (H ((SZ, Q, HC) :: T))
     end.
+    match goal with
+    | [ H : ?A -> _ |- _ ] =>
+      let H' := fresh "H" in
+      assert (H' : A); [ | specialize (H H') ]
+    end.
+    { simpl.
+      rewrite size_update_type_ctx.
+      rewrite sizepairs_debruijn_weak_pretype.
+      rewrite type_update_type_ctx.
+      rewrite weak_pretype_on_tctx.
+      constructor; auto.
+      right; right.
+      split; auto. }
     match goal with
     | [ H : ?A -> _ |- _ ] =>
       let H' := fresh "H" in
@@ -9172,6 +9844,10 @@ Proof.
          specialize (H H')
        end.
        match goal with
+       | [ H : ?A -> _, H' : ?A |- _ ] =>
+         specialize (H H')
+       end.
+       match goal with
        | [ H : TypeValid ?F ?T |- TypeValid ?F2 ?T ] =>
          replace F2 with F; auto
        end.
@@ -9198,13 +9874,14 @@ Proof.
     match goal with
     | [ X : Typ |- _ ] => destruct X; simpl in *
     end.
-    match goal with
-    | [ H : sizeOfPretype ?L ?PT = Some ?SZ,
-        H' : SizeLeq_tctx _ _ ?L |- _ ] =>
-      specialize (sizeOfPretype_SizeLeq_ctx H' H)
-    end.
-    intros; destructAll.
+    eapply prove_using_unknown_lemma.
+    {
+      eapply sizeOfPretype_SizeLeq_ctx; eauto.
+    }
+    intros; split; auto.
+    destructAll.
     eexists; split; eauto.
+    split; eauto.
     split; eauto.
     split; eauto.
     eapply SizeLeq_Trans; eauto.
@@ -9217,6 +9894,19 @@ Proof.
        | [ H : forall _, _ -> _ |- context[(?SZ, ?Q, ?HC) :: ?T] ] =>
          specialize (H ((SZ, Q, HC) :: T))
        end.
+       match goal with
+       | [ H : ?A -> _ |- _ ] =>
+         let H' := fresh "H" in
+         assert (H' : A); [ | specialize (H H') ]
+       end.
+       { simpl.
+         rewrite size_update_type_ctx.
+         rewrite sizepairs_debruijn_weak_pretype.
+         rewrite type_update_type_ctx.
+         rewrite weak_pretype_on_tctx.
+         rewrite type_update_type_ctx.
+         constructor; auto.
+         left; auto. }
        match goal with
        | [ H : ?A -> _ |- _ ] =>
          let H' := fresh "H" in
@@ -9268,6 +9958,73 @@ Proof.
          let H' := fresh "H" in assert (H' : A);
          [ | specialize (H H') ]
        end.
+       {
+         rewrite add_constraints_to_ks_of_kvs; simpl.
+         apply Forall2_app.
+         - apply forall2_nth_error_inv.
+           2: auto.
+           intros.
+           match goal with
+           | [ H : ?A = _, H' : ?A = _ |- _ ] =>
+               rewrite H' in H; inv H
+           end.
+           destruct_prs.
+           left; auto.
+         - apply forall2_nth_error_inv.
+           2: repeat rewrite map_length; eapply Forall2_length; eauto.
+           intros.
+           destruct_prs.
+           do 2 match goal with
+           | [ H : nth_error (map _ _) _ = Some _ |- _ ] =>
+               apply nth_error_map_inv in H
+           end.
+           destructAll.
+           destruct_prs.
+           match goal with
+           | [ H : (_,_,_) = (_,_,_), H' : (_,_,_) = (_,_,_) |- _ ] =>
+               inv H; inv H'
+           end.
+           match goal with
+           | [ H : Forall2 _ ?L1 ?L2,
+               H' : nth_error ?L1 _ = _,
+               H'' : nth_error ?L2 _ = _ |- _ ] =>
+             specialize (forall2_nth_error _ _ _ _ _ _ H H' H'')
+           end.
+           intros; simpl in *.
+           match goal with
+           | [ H : sizes_substitutable _ _ _ |- _ ] => inv H
+           end.
+           1:{ left; auto. }
+           destructAll.
+           match goal with
+           | [ H : _ \/ _ |- _ ] => inv H
+           end.
+           all: destructAll.
+           -- right; left.
+              split.
+              --- match goal with
+                  | [ |- SizeLeq _ (subst'_size ?SU _) ?SZ = _ ] =>
+                      replace SZ with (subst'_size SU SZ) by auto
+                  end.
+                  apply SizeLeq_weaks; auto.
+                  apply length_collect_szctx.
+              --- eapply SizeValid_apply_weaks; eauto.
+                  rewrite app_length.
+                  rewrite length_collect_szctx.
+                  rewrite map_length; auto.
+           -- right; right.
+              split.
+              all: eapply SizeValid_apply_weaks; eauto.
+              all: rewrite app_length.
+              all: rewrite length_collect_szctx.
+              all: rewrite map_length; auto.
+       }
+           
+       match goal with
+       | [ H : ?A -> _ |- _ ] =>
+         let H' := fresh "H" in assert (H' : A);
+         [ | specialize (H H') ]
+       end.
        { rewrite add_constraints_to_ks_of_kvs; simpl.
          unfold SizeLeq_tctx.
          apply Forall2_app; [ apply SizeLeq_tctx_refl | ].
@@ -9313,6 +10070,7 @@ Lemma TypeValid_SizeLeq : forall {F sz sz' q hc tctx t},
     TypeValid F t ->
     type F = (sz, q, hc) :: tctx ->
     SizeLeq (size F) sz' sz = Some true ->
+    sizes_substitutable (size F) sz' sz ->
     TypeValid (update_type_ctx ((sz', q, hc) :: tctx) F) t.
 Proof.
   intros.
@@ -9322,11 +10080,22 @@ Proof.
   | [ H : TypeValid _ _, H' : forall _ _, _ -> _ |- _ ] =>
     specialize (H' _ _ H); eapply H'; eauto
   end.
-  match goal with
-  | [ H : ?X = _ |- context[?X] ] => rewrite H
-  end.
-  constructor; auto.
-  apply SizeLeq_tctx_refl.
+  - match goal with
+    | [ H : ?X = _ |- context[?X] ] => rewrite H
+    end.
+    constructor; auto.
+    apply forall2_nth_error_inv; auto.
+    intros.
+    match goal with
+    | [ H : ?A = _, H' : ?A = _ |- _ ] => rewrite H in H'; inv H'
+    end.
+    destruct_prs.
+    left; auto.
+  - match goal with
+    | [ H : ?X = _ |- context[?X] ] => rewrite H
+    end.
+    constructor; auto.
+    apply SizeLeq_tctx_refl.
 Qed.  
 
 Lemma pretype_subst_no_effect_on_kindvar : forall {kv f ks pt},
@@ -9389,7 +10158,7 @@ Proof.
     prepare_Forall; eauto.
   - eapply H.
     constructor; auto.
-Qed.    
+Qed.
 
 Lemma sizeOfPretype_weaks_only_size_matters : forall {pt tctx f ks' ks},
     debruijn_weaks_conds f ks' ks ->
@@ -9531,6 +10300,12 @@ Proof.
   all: eapply debruijn_weaks_conds_under_knd; eauto.
 Qed.
 
+Lemma size_update_location_ctx : forall {F lctx},
+    size (update_location_ctx lctx F) = size F.
+Proof.
+  destruct F; auto.
+Qed.
+
 Lemma TypeValid_add_constraint_loc :
   (forall F t,
       TypeValid F t ->
@@ -9585,13 +10360,17 @@ Proof.
       | [ H : context[_ <= _ -> _] |- _ ] => rewrite H; auto
       end.
     all: simpl.
-    all: econstructor; eauto.
-    all: try ltac:(rewrite qual_fctx_subst_weak_loc; eauto).
+    all: econstructor.
+    4,8: rewrite qual_fctx_subst_weak_loc; eauto.
+    all: try rewrite qual_fctx_subst_weak_loc; eauto.
     all: rewrite type_fctx_subst_weak_loc; eauto.
   - erewrite weak_non_qual_no_effect_on_qual; eauto; [ | now solve_ineqs ].
     econstructor; eauto.
     all: try rewrite qual_fctx_subst_weak_loc; eauto.
     -- erewrite weak_non_qual_no_effect_on_qual; eauto; solve_ineqs.
+    -- erewrite weak_non_qual_no_effect_on_qual;
+         [ | | eapply debruijn_weaks_conds_under_knd ];
+         eauto; solve_ineqs.
     -- erewrite weak_non_qual_no_effect_on_qual;
          [ | | eapply debruijn_weaks_conds_under_knd ];
          eauto; solve_ineqs.
@@ -9607,6 +10386,11 @@ Proof.
        erewrite sizeOfPretype_weaks_only_size_matters; eauto.
        --- eapply debruijn_weaks_conds_under_knd; eauto.
        --- unfold sing; simpl; auto.
+    -- rewrite add_constraints_to_ks_of_kvs in *.
+       simpl in *.
+       rewrite sizepairs_debruijn_weak_loc.
+       rewrite size_update_location_ctx.
+       auto.
     -- match goal with
        | [ H : forall _ _, _ |-
            context[update_type_ctx ((?SZ, ?Q, ?HC) :: _)] ] =>
@@ -10000,7 +10784,8 @@ Proof.
       | [ H : context[_ <= _ -> _] |- _ ] => rewrite H; auto
       end.
     all: simpl.
-    all: econstructor; eauto.
+    all: econstructor.
+    4,8: rewrite qual_fctx_subst_weak_pretype; eauto.
     all: try ltac:(rewrite qual_fctx_subst_weak_pretype; eauto).
     all: rewrite type_fctx_subst_weak_pretype; eauto.
     -- rewrite add_constraints_to_ks_of_kvs in *; simpl in *.
@@ -10108,6 +10893,9 @@ Proof.
     -- erewrite weak_non_qual_no_effect_on_qual;
          [ | | eapply debruijn_weaks_conds_under_knd ];
          eauto; solve_ineqs.
+    -- erewrite weak_non_qual_no_effect_on_qual;
+         [ | | eapply debruijn_weaks_conds_under_knd ];
+         eauto; solve_ineqs.
        erewrite weak_non_qual_no_effect_on_qual; eauto; solve_ineqs.
     -- erewrite weak_non_qual_no_effect_on_qual;
          [ | | eapply debruijn_weaks_conds_under_knd ];
@@ -10117,6 +10905,11 @@ Proof.
        --- unfold plus.
            simpl.
            lia.
+    -- rewrite add_constraints_to_ks_of_kvs in *.
+       simpl in *.
+       rewrite sizepairs_debruijn_weak_pretype.
+       rewrite size_update_type_ctx.
+       auto.
     -- match goal with
        | [ H : forall _ _, _ |-
            context[update_type_ctx ((?SZ, ?Q, ?HC) :: _)] ] =>
@@ -10252,7 +11045,7 @@ Proof.
     end.
     simpl in *.
     eauto.
-  - econstructor; eauto.
+  - econstructor.
     prepare_Forall.
     match goal with
     | [ H : List.In _ (map _ _) |- _ ] => apply in_map_inv in H
@@ -10273,7 +11066,7 @@ Proof.
     match goal with
     | [ H : sizeOfPretype _ _ = Some ?SZ |- _ ] => exists SZ
     end.
-    repeat split.
+    repeat split; auto.
     -- rewrite add_constraints_to_ks_of_kvs in *; simpl in *.
        rewrite type_update_type_ctx in *.
        simpl.
@@ -10316,9 +11109,6 @@ Proof.
            solve_ineqs.
     -- erewrite weak_non_size_no_effect_on_size; eauto.
        solve_ineqs.
-    -- match goal with
-       | [ H : forall _ _ _ _ _, _ |- _ ] => eapply H; eauto
-       end.
     -- erewrite weak_non_size_no_effect_on_size; eauto.
        solve_ineqs.
   - econstructor; eauto.
@@ -10477,18 +11267,6 @@ Proof.
   eapply collect_qctx_weak_size_gen; eauto.
   - apply single_weak_debruijn_weak_conds.
   - auto.
-Qed.
-
-Lemma ks_of_kvs_subst_kindvars : forall {kvs su},
-    ks_of_kvs (subst'_kindvars su kvs) =
-    ks_of_kvs kvs.
-Proof.
-  induction kvs; simpl; auto.
-  intros.
-  match goal with
-  | [ X : KindVar |- _ ] => destruct X; simpl
-  end.
-  all: rewrite IHkvs; auto.
 Qed.
 
 Lemma qual_fctx_subst_weak_size : forall {F kvs szs0 szs1},
@@ -11259,352 +12037,6 @@ Proof.
     eapply type_fctx_subst_weak_size_helper; eauto.
 Qed.
 
-Lemma SizeValid_subst_weak_size : forall {sz f F kvs szs0 szs1},
-    debruijn_weaks_conds f (ks_of_kvs kvs) (sing SSize 1) ->
-    SizeValid (size (add_constraints F kvs)) sz ->
-    SizeValid
-      (size
-         (add_constraints
-            (subst'_function_ctx (subst'_of (weak SSize))
-                                 (update_size_ctx ((szs0, szs1) :: size F) F))
-            (subst'_kindvars (subst'_of (weak SSize)) kvs)))
-      (subst'_size f sz).
-Proof.
-  induction sz.
-  intros.
-  - rewrite add_constraints_to_ks_of_kvs in *; simpl in *.
-    unfold get_var'.
-    unfold debruijn_weaks_conds in *.
-    destructAll.
-    match goal with
-    | [ H : context[_ >= ?KS _ -> ?F _ _ _ = _],
-        H'' : context[_ < ?KS _ -> ?F _ _ _ = _]
-        |- SizeValid _ (?F ?KND ?V _) ] =>
-      let H' := fresh "H" in
-      assert (H' : V < KS KND \/ V >= KS KND) by apply Nat.lt_ge_cases;
-      case H'; intros; [ rewrite H'' | rewrite H ]; auto
-    end.
-    all: simpl.
-    all:
-      match goal with
-      | [ |- SizeValid ?L (SizeVar ?SZ) ] =>
-        let H := fresh "H" in
-        assert (H : SZ < length L);
-        [ | apply nth_error_some_exists in H; destructAll;
-            eapply SizeVarValid; eauto ]
-      end.
-    all: rewrite app_length.
-    all: repeat rewrite map_length.
-    all: rewrite length_collect_szctx.
-    all: rewrite ks_of_kvs_subst_kindvars.
-    -- lia.
-    -- destruct F; subst; simpl in *.
-       match goal with
-       | [ H : SizeValid _ _ |- _ ] => inv H
-       end.
-       all:
-         match goal with
-         | [ H : SizeVar _ = _ |- _ ] => inv H
-         end.
-       match goal with
-       | [ H : nth_error _ _ = Some _ |- _ ] =>
-         apply nth_error_Some_length in H
-       end.
-       rewrite app_length in *.
-       rewrite map_length in *.
-       rewrite length_collect_szctx in *.
-       lia.
-  - intros.
-    match goal with
-    | [ H : SizeValid _ _ |- _ ] => inv H
-    end.
-    all:
-      match goal with
-      | [ H : SizePlus _ _ = _ |- _ ] => inv H
-      end.
-    eapply SizePlusValid; simpl; eauto.
-  - econstructor; simpl; eauto.
-Qed.
-
-Lemma model_satisfies_context_from_idx_desc : forall {A B} {leq : B -> B -> Prop} {lift_model : (nat -> B) -> (A -> B)} {model ctx idx},
-    model_satisfies_context_from_idx leq lift_model model ctx idx <->
-    (forall v l0 l1,
-        nth_error ctx v = Some (l0, l1) ->
-        Forall
-          (fun obj =>
-             leq (lift_model model obj) (model (idx + v)))
-          l0 /\
-        Forall
-          (fun obj =>
-             leq (model (idx + v)) (lift_model model obj))
-          l1).
-Proof.
-  intros; split; revert idx; induction ctx; intros; simpl in *.
-  - destruct v; simpl in *.
-    all:
-      match goal with
-      | [ H : None = Some _ |- _ ] => inv H
-      end.
-  - destruct_prs; destructAll.
-    destruct v; simpl in *.
-    -- match goal with
-       | [ H : Some _ = Some _ |- _ ] => inv H
-       end.
-       repeat rewrite Nat.add_0_r; auto.
-    -- repeat rewrite <-Nat.add_succ_comm.
-       apply IHctx; auto.
-  - auto.
-  - destruct_prs.
-    match goal with
-    | [ H : forall _ _ _, _ |- _ ] =>
-      generalize (H 0 _ _ eq_refl); intros; simpl in *
-    end.
-    destructAll.
-    repeat rewrite Nat.add_0_r in *.
-    split; auto.
-    split; auto.
-    apply IHctx; intros.
-    repeat rewrite Nat.add_succ_comm.
-    match goal with
-    | [ H : forall _ _ _, _ |- _ ] => apply H
-    end.
-    simpl; auto.
-Qed.
-
-Lemma model_satisfies_context_desc : forall {A B} {leq : B -> B -> Prop} {lift_model : (nat -> B) -> (A -> B)} {model ctx},
-    model_satisfies_context leq lift_model model ctx <->
-    (forall v l0 l1,
-        nth_error ctx v = Some (l0, l1) ->
-        Forall
-          (fun obj =>
-             leq (lift_model model obj) (model v))
-          l0 /\
-        Forall
-          (fun obj =>
-             leq (model v) (lift_model model obj))
-          l1).
-Proof.
-  unfold model_satisfies_context.
-  intros.
-  rewrite model_satisfies_context_from_idx_desc.
-  simpl; split; auto.
-Qed.
-
-Lemma ctx_imp_leq_map : forall {A B} {leq : B -> B -> Prop} {lift_model : (nat -> B) -> (A -> B)} {ctx ctx' obj1 obj2 f},
-    (forall model,
-        model_satisfies_context leq lift_model model ctx' ->
-        exists model',
-          model_satisfies_context leq lift_model model' ctx /\
-          lift_model model' =
-          (fun obj => lift_model model (f obj))) ->
-    ctx_imp_leq leq lift_model ctx obj1 obj2 ->
-    ctx_imp_leq leq lift_model ctx' (f obj1) (f obj2).
-Proof.
-  unfold ctx_imp_leq.
-  intros.
-  match goal with
-  | [ H : forall _, model_satisfies_context _ _ _ _ -> _,
-      H' : model_satisfies_context _ _ _ _ |- _ ] =>
-    specialize (H _ H')
-  end.
-  destructAll.
-  match goal with
-  | [ H : forall _, model_satisfies_context _ _ _ ?A -> _,
-      H' : model_satisfies_context _ _ _ ?A |- _ ] =>
-    specialize (H _ H')
-  end.
-  match goal with
-  | [ H : ?A = _, H' : context[?A] |- _ ] => rewrite H in H'; auto
-  end.
-Qed.
-
-Lemma SizeLeq_weaks_gen : forall {f ks' ks sz sz' szctx' prf szctx},
-    debruijn_weaks_conds f ks' ks ->
-    length szctx' = ks' SSize ->
-    length prf = ks SSize ->
-    SizeLeq (szctx' ++ szctx) sz sz' = Some true ->
-    SizeLeq
-      ((map
-          (fun '(szs0, szs1) =>
-             (subst'_sizes f szs0, subst'_sizes f szs1))
-          szctx')
-         ++
-         prf
-         ++
-         map
-         (fun '(szs2, szs3) =>
-            (subst'_sizes f szs2, subst'_sizes f szs3))
-         szctx)
-      (subst'_size f sz)
-      (subst'_size f sz') =
-    Some true.
-Proof.
-  intros.
-  rewrite SizeLeq_desc in *.
-  eapply ctx_imp_leq_map; eauto.
-  intros.
-  match goal with
-  | [ H : model_satisfies_context _ _ ?M _,
-      H' : debruijn_weaks_conds _ ?KSP ?KS |- _ ] =>
-    exists (fun v => M (if v <? KSP SSize then v else v + KS SSize))
-  end.
-  match goal with
-  | [ |- ?A /\ ?B ] =>
-    let H := fresh "H" in assert (H : B); [ | split; auto ]
-  end.
-  { apply FunctionalExtensionality.functional_extensionality.
-    intros; subst.
-    match goal with
-    | [ H : debruijn_weaks_conds _ _ _ |- _ ] => revert H
-    end.
-    clear.
-    match goal with
-    | [ X : Size |- _ ] => induction X
-    end.
-    all: simpl in *; auto.
-    unfold debruijn_weaks_conds.
-    intros.
-    destructAll.
-    unfold get_var'.
-    match goal with
-    | [ |- context[?A <? ?B] ] =>
-      remember (A <? B) as obj; specialize (eq_sym Heqobj); case obj; intros
-    end.
-    - rewrite OrdersEx.Nat_as_OT.ltb_lt in *.
-      match goal with
-      | [ H : context[_ < _ -> _] |- _ ] => rewrite H; auto
-      end.
-    - rewrite OrdersEx.Nat_as_OT.ltb_ge in *.
-      match goal with
-      | [ H : context[_ >= _ -> _] |- _ ] => rewrite H; auto
-      end.
-      simpl.
-      unfold zero.
-      rewrite <-plus_n_O.
-      rewrite Nat.add_comm; auto. }
-  
-  rewrite model_satisfies_context_desc in *.
-  match goal with
-  | [ H : model_satisfies_context _ _ _ _ |- _ ] =>
-    rewrite model_satisfies_context_desc in H
-  end.
-  intros.
-  match goal with
-  | [ H : interp_size _ = _ |- _ ] => rewrite H
-  end.
-  match goal with
-  | [ H : forall _ _ _, nth_error ?L _ = Some _ -> _,
-      H' : nth_error _ ?IDX = Some (?L1, ?L2),
-      H'' : debruijn_weaks_conds ?F ?KSP ?KS |- _ ] =>
-    let H0 := fresh "H" in
-    assert (H0 : nth_error
-                   L
-                   (if IDX <? KSP SSize then IDX else IDX + KS SSize)
-                 =
-                 Some
-                   (subst'_sizes f L1,
-                    subst'_sizes f L2));
-    [ | specialize (H _ _ _ H0) ]
-  end.
-  { match goal with
-    | [ |- context[?A <? ?B] ] =>
-      remember (A <? B) as obj; specialize (eq_sym Heqobj); case obj; intros
-    end.
-    - rewrite OrdersEx.Nat_as_OT.ltb_lt in *.
-      rewrite nth_error_app1 in *; try lia.
-      2:{ rewrite map_length; lia. }
-      erewrite nth_error_map; eauto.
-      simpl; auto.
-    - rewrite OrdersEx.Nat_as_OT.ltb_ge in *.
-      rewrite nth_error_app2 in *; try lia.
-      2:{ rewrite map_length; lia. }
-      rewrite map_length.
-      rewrite nth_error_app2 by lia.
-      match goal with
-      | [ H : nth_error _ ?IDX = Some _ 
-          |- nth_error _ ?IDX2 = Some _ ] =>
-        replace IDX2 with IDX by lia
-      end.
-      erewrite nth_error_map; eauto.
-      simpl; auto. }
-  destructAll.
-  split; prepare_Forall.
-  all: rewrite Forall_forall in *.
-  all: unfold subst'_sizes in *.
-  all:
-    match goal with
-    | [ H : context[List.In _ (map ?F ?B)], H' : List.In ?A ?B |- _ ] =>
-      let H'' := fresh "H" in
-      assert (H'' : List.In (F A) (map F B)) by ltac:(apply in_map; auto);
-      specialize (H _ H''); auto
-    end.
-Qed.
-
-Lemma SizeLeq_weaks : forall {ks sz sz' prf szctx},
-    length prf = ks SSize ->
-    SizeLeq szctx sz sz' = Some true ->
-    SizeLeq
-      (prf ++
-           map
-           (fun '(szs2, szs3) =>
-              (subst'_sizes (weaks' ks) szs2,
-               subst'_sizes (weaks' ks) szs3)) szctx)
-      (subst'_size (weaks' ks) sz)
-      (subst'_size (weaks' ks) sz') =
-    Some true.
-Proof.
-  intros.
-  match goal with
-  | [ |- SizeLeq (?A ++ map ?F ?B) _ _ = _ ] =>
-    replace (A ++ map F B) with (map F [] ++ A ++ map F B) by auto
-  end.
-  eapply SizeLeq_weaks_gen; eauto.
-  - apply simpl_debruijn_weak_conds.
-  - auto.
-Qed.
-
-Lemma subst_weaks_weak_comm : forall {f ks knd},
-    debruijn_weaks_conds f ks (sing knd 1) ->
-    f ∘' (weaks' ks) =
-    (weaks' ks) ∘' (subst'_of (weak knd)).
-Proof.
-  intros.
-  unfold debruijn_weaks_conds in *.
-  destructAll.
-  apply FunctionalExtensionality.functional_extensionality_dep.
-  intros.
-  apply FunctionalExtensionality.functional_extensionality.
-  intros.
-  apply FunctionalExtensionality.functional_extensionality.
-  intros.
-  simpl.
-  unfold weak.
-  unfold weaks.
-  unfold weaks' at 1.
-  destruct x; simpl.
-  all: unfold get_var'.
-  all: unfold under_ks'.
-  all:
-    do 2 match goal with
-         | [ |- context[if ?A then _ else _] ] =>
-           replace A with false; [ | apply eq_sym; rewrite OrdersEx.Nat_as_OT.ltb_ge; lia ]
-         end.
-  all: unfold weaks'; simpl.
-  all:
-    match goal with
-    | [ H : context[_ >= _ -> _] |- _ ] => rewrite H; try lia
-    end.
-  all: unfold var.
-  all: simpl.
-  all:
-    match goal with
-    | [ |- _ ?A = _ ?B ] => replace B with A; auto
-    end.
-  all: rewrite plus_zero.
-  all: unfold zero.
-  all: lia.
-Qed.
-
 Lemma collect_szctx_subst_weak_size : forall {kvs f},
   debruijn_weaks_conds f (ks_of_kvs kvs) (sing SSize 1) ->
   collect_szctx (subst'_kindvars (subst'_of (weak SSize)) kvs)
@@ -11910,8 +12342,9 @@ Proof.
     
     simpl.
     destructAll.
-    econstructor; eauto.
-    all: try rewrite qual_fctx_subst_weak_size; eauto.
+    econstructor.
+    4: rewrite qual_fctx_subst_weak_size; eauto.
+    all: try rewrite qual_fctx_subst_weak_size; auto.
     erewrite type_fctx_subst_weak_size.
     2:{
       constructor; eauto.
@@ -11921,6 +12354,9 @@ Proof.
     econstructor; eauto.
     all: try rewrite qual_fctx_subst_weak_size; eauto.
     -- erewrite weak_non_qual_no_effect_on_qual; eauto; solve_ineqs.
+    -- erewrite weak_non_qual_no_effect_on_qual;
+         [ | | eapply debruijn_weaks_conds_under_knd ];
+         eauto; solve_ineqs.
     -- erewrite weak_non_qual_no_effect_on_qual;
          [ | | eapply debruijn_weaks_conds_under_knd ];
          eauto; solve_ineqs.
@@ -11948,6 +12384,7 @@ Proof.
            rewrite app_length.
            rewrite length_collect_tctx.
            lia.
+    -- eapply SizeValid_subst_weak_size; eauto.
     -- match goal with
        | [ H : forall _ _, _ |- _ ] =>
          match goal with
@@ -12127,7 +12564,8 @@ Proof.
     end.
     simpl; auto.
     eexists; split; eauto.
-    split; [ | split ]; eauto.
+    repeat split; eauto.
+    -- eapply SizeValid_subst_weak_size; eauto.
     -- eapply SizeValid_subst_weak_size; eauto.
     -- eapply SizeLeq_subst_weak_size; eauto.
   - econstructor; eauto.
@@ -12991,14 +13429,17 @@ Proof.
     }
     
     simpl.
-    econstructor; eauto.
+    econstructor.
+    4: eapply QualLeq_subst_weak_qual; eauto.
+    -- eapply QualValid_subst_weak_qual; eauto.
     -- eapply QualValid_subst_weak_qual; eauto.
     -- erewrite type_fctx_subst_weak_qual; eauto.
        erewrite nth_error_map; do 2 eauto.
-    -- eapply QualLeq_subst_weak_qual; eauto.
   - econstructor; eauto.
     -- eapply QualValid_subst_weak_qual; eauto.
     -- eapply QualValid_subst_weak_qual; eauto.
+    -- erewrite debruijn_weaks_conds_under_no_effect; eauto.
+       eapply QualValid_subst_weak_qual; eauto.
     -- erewrite debruijn_weaks_conds_under_no_effect; eauto.
        eapply QualLeq_subst_weak_qual; eauto.
     -- erewrite debruijn_weaks_conds_under_no_effect; eauto.
@@ -13014,6 +13455,14 @@ Proof.
        2:{ auto. }
        constructor; auto.
        eapply eifc_map_second_comp; eauto.
+    -- match goal with
+       | [ H : debruijn_weaks_conds ?F _ _ |- SizeValid _ ?SZ ] =>
+           replace SZ with (subst'_size F SZ)
+       end.
+       2:{
+         erewrite weak_non_size_no_effect_on_size; eauto; solve_ineqs.
+       }
+       eapply SizeValid_subst_weak_qual; eauto.
     -- match goal with
        | [ H : forall _ _, _ |- _ ] =>
          match goal with
@@ -13185,6 +13634,8 @@ Proof.
     -- rewrite size_fctx_subst_weak_qual.
        erewrite weak_non_size_no_effect_on_size; eauto; solve_ineqs.
     -- rewrite size_fctx_subst_weak_qual.
+       auto.
+    -- rewrite size_fctx_subst_weak_qual.
        erewrite weak_non_size_no_effect_on_size; eauto; solve_ineqs.
   - econstructor; eauto.
     match goal with
@@ -13330,6 +13781,8 @@ Lemma TypeValid_debruijn_subst_provable :
       forall f kvs pt sz sz' q hc F' F'',
         debruijn_subst_ext_conds f (ks_of_kvs kvs) SPretype pt ->
         sizeOfPretype (type F'') pt = Some sz' ->
+        SizeValid (size F'') sz' ->
+        SizeValid (size F'') sz ->
         SizeLeq (size F'') sz' sz = Some true ->
         TypeValid F'' (QualT pt q) ->
         F = add_constraints F'' (TYPE sz q hc :: kvs) ->
@@ -13340,6 +13793,8 @@ Lemma TypeValid_debruijn_subst_provable :
       forall f kvs pt sz sz' q hc F' F'',
         debruijn_subst_ext_conds f (ks_of_kvs kvs) SPretype pt ->
         sizeOfPretype (type F'') pt = Some sz' ->
+        SizeValid (size F'') sz' ->
+        SizeValid (size F'') sz ->
         SizeLeq (size F'') sz' sz = Some true ->
         TypeValid F'' (QualT pt q) ->
         F = add_constraints F'' (TYPE sz q hc :: kvs) ->
@@ -13350,6 +13805,8 @@ Lemma TypeValid_debruijn_subst_provable :
       forall f kvs pt sz sz' q hc F' F'',
         debruijn_subst_ext_conds f (ks_of_kvs kvs) SPretype pt ->
         sizeOfPretype (type F'') pt = Some sz' ->
+        SizeValid (size F'') sz' ->
+        SizeValid (size F'') sz ->
         SizeLeq (size F'') sz' sz = Some true ->
         TypeValid F'' (QualT pt q) ->
         F = add_constraints F'' (TYPE sz q hc :: kvs) ->
@@ -13360,6 +13817,8 @@ Lemma TypeValid_debruijn_subst_provable :
       forall f kvs pt sz sz' q hc F' F'',
         debruijn_subst_ext_conds f (ks_of_kvs kvs) SPretype pt ->
         sizeOfPretype (type F'') pt = Some sz' ->
+        SizeValid (size F'') sz' ->
+        SizeValid (size F'') sz ->
         SizeLeq (size F'') sz' sz = Some true ->
         TypeValid F'' (QualT pt q) ->
         F = add_constraints F'' (TYPE sz q hc :: kvs) ->
@@ -13408,7 +13867,9 @@ Proof.
        | [ H : context[_ <> _ _] |- _ ] => rewrite H; auto
        end.
        simpl.
-       econstructor; eauto.
+       econstructor.
+       4: erewrite <-qual_fctx_subst_weak_pretype; eauto.
+       --- erewrite <-qual_fctx_subst_weak_pretype; eauto.
        --- erewrite <-qual_fctx_subst_weak_pretype; eauto.
        --- rewrite add_constraints_to_ks_of_kvs; simpl.
            match goal with
@@ -13425,7 +13886,6 @@ Proof.
            apply eq_sym.
            eapply remove_nth_prefix_appliable; eauto.
            rewrite length_collect_tctx; auto.
-       --- erewrite <-qual_fctx_subst_weak_pretype; eauto.
   - match goal with
     | [ H : sizeOfPretype _ _ = Some _ |- _ ] =>
       rewrite add_constraints_to_ks_of_kvs in H;
@@ -13450,34 +13910,57 @@ Proof.
       unfold plus.
       simpl; auto.
     }
-    
-    match goal with
-    | [ H : debruijn_subst_ext_conds (under' _ _) ?F2 _ _,
-        H' : sizeOfPretype _ _ = Some _,
-        H'' : sizeOfPretype _ _ = Some ?SZ,
-        H''' : SizeLeq _ ?SZ ?SZP = Some _ |- _ ] =>
-      specialize (sizeOfPretype_subst H H' H'' H''')
-    end.
 
-    unfold plus; simpl.
-    rewrite length_collect_tctx.
-    let H' := fresh "H" in intro H'; generalize (H' eq_refl); clear H'.
-    match goal with
-    | [ |- (?A -> _) -> _ ] =>
-      let H' := fresh "H" in
-      assert (H' : A);
-      [ | let H'' := fresh "H" in
-          intro H''; specialize (H'' H') ]
-    end.
-    { rewrite map_map.
-      apply map_ext.
-      intros.
-      destruct_prs.
-      apply subst_size_only_size_matters.
-      simpl; auto. }
+    eapply prove_using_unknown_lemma.
+    {
+      eapply sizeOfPretype_subst.
+      1-2,5,8: eauto.
+      all: auto.
+      - match goal with
+        | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+            replace F2 with F; auto
+        end.
+        rewrite add_constraints_to_ks_of_kvs.
+        simpl.
+        rewrite size_update_type_ctx.
+        match goal with
+        | [ |- ?A ++ ?B = _ ++ ?C ] =>
+            replace C with B; eauto
+        end.
+        rewrite map_map.
+        apply map_ext.
+        intros.
+        destruct_prs.
+        unfold subst'_sizes.
+        repeat rewrite map_map.
+        match goal with
+        | [ |- (map ?F _, _) = (map ?F2 _, _) ] =>
+            replace F2 with F; auto
+        end.
+        apply FunctionalExtensionality.functional_extensionality.
+        intros.
+        rewrite pretype_weak_no_effect_on_size.
+        apply subst_size_only_size_matters.
+        unfold plus; simpl; auto.
+      - rewrite length_collect_szctx.
+        unfold plus; simpl; auto.
+      - simpl.
+        rewrite length_collect_tctx.
+        unfold plus; simpl; auto.
+      - rewrite map_map.
+        apply map_ext.
+        intros.
+        destruct_prs.
+        apply subst_size_only_size_matters.
+        unfold plus; simpl; auto.
+    }
+    intros.
+    split; auto.
     destructAll.
 
     econstructor; eauto.
+    -- erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
+       erewrite <-qual_fctx_subst_weak_pretype; eauto.
     -- erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
        erewrite <-qual_fctx_subst_weak_pretype; eauto.
     -- erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
@@ -13493,6 +13976,28 @@ Proof.
     -- simpl.
        rewrite add_constraints_to_ks_of_kvs; simpl.
        erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
+    -- rewrite add_constraints_to_ks_of_kvs; simpl.
+       match goal with
+       | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+           replace F2 with F; auto
+       end.
+       simpl.
+       match goal with
+       | [ |- ?A ++ ?B = _ ++ ?C ] =>
+           replace C with B; eauto
+       end.
+       apply map_ext.
+       intros.
+       destruct_prs.
+       unfold subst'_sizes.
+       match goal with
+       | [ |- (map ?F _, _) = (map ?F2 _, _) ] =>
+           replace F2 with F; auto
+       end.
+       apply FunctionalExtensionality.functional_extensionality.
+       intros.
+       apply subst_size_only_size_matters.
+       unfold plus; simpl; auto.
     -- match goal with
        | [ H : context[SizeLeq _ ?SZ ?SZP] |- TypeValid (subst_ext ?W (update_type_ctx ((?SZ, ?Q, ?HC) :: type ?F) ?F)) _ ] =>
          replace (subst_ext W (update_type_ctx ((SZ, Q, HC) :: type F) F)) with (update_type_ctx ((SZ, Q, HC) :: type F) (subst_ext W (update_type_ctx ((SZP, Q, HC) :: type F) F)));
@@ -13547,10 +14052,7 @@ Proof.
          }
          rewrite collect_szctx_snoc.
          simpl.
-         match goal with
-         | [ H : forall _, _ -> SizeLeq _ _ _ = _ |- _ ] => eapply H
-         end.
-         apply length_collect_szctx.
+         auto.
        } 
          
        match goal with
@@ -13578,6 +14080,65 @@ Proof.
        --- rewrite add_constraints_snoc.
            simpl; auto.
            erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
+       --- right; right.
+           split; auto.
+           ---- rewrite pretype_weak_no_effect_on_size_field.
+                rewrite size_update_type_ctx.
+                rewrite add_constraints_to_ks_of_kvs; simpl.
+                match goal with
+                | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+                    replace F2 with F; auto
+                end.
+                match goal with
+                | [ |- ?A ++ ?B = _ ++ ?C ] =>
+                    replace C with B; eauto
+                end.
+                apply map_ext.
+                intros.
+                destruct_prs.
+                unfold subst'_sizes.
+                match goal with
+                | [ |- (map ?F _, _) = (map ?F2 _, _) ] =>
+                    replace F2 with F; auto
+                end.
+                apply FunctionalExtensionality.functional_extensionality.
+                intros.
+                apply subst_size_only_size_matters.
+                unfold plus; simpl; auto.
+           ---- rewrite pretype_weak_no_effect_on_size_field.
+                rewrite size_update_type_ctx.
+                match goal with
+                | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+                    replace F2 with F; auto
+                end.
+                rewrite add_constraints_to_ks_of_kvs; simpl.
+                rewrite add_constraints_to_ks_of_kvs; simpl.
+                match goal with
+                | [ |- ?A ++ ?B = _ ++ ?C ] =>
+                    replace C with B; eauto
+                end.
+                rewrite size_update_type_ctx.
+                match goal with
+                | [ |- map _ ?L = map _ ?L2 ] =>
+                    replace L with L2; auto
+                end.
+                apply eq_sym.
+                rewrite <-map_id.
+                apply map_ext.
+                intros.
+                destruct_prs.
+                unfold subst'_sizes.
+                match goal with
+                | [ |- context[map ?F] ] =>
+                    replace (map F) with (fun (s : list Size) => s); auto
+                end.
+                apply FunctionalExtensionality.functional_extensionality.
+                intros.
+                apply eq_sym.
+                rewrite <-map_id.
+                apply map_ext.
+                intros.
+                apply pretype_weak_no_effect_on_size.
   - econstructor; eauto.
     erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
     erewrite <-qual_fctx_subst_weak_pretype; eauto.
@@ -13726,32 +14287,60 @@ Proof.
       rewrite Forall_forall in H; specialize (H _ H'); destructAll
     end.
     simpl in *.
-    
+
     match goal with
-    | [ H : debruijn_subst_ext_conds _ ?F2 _ _,
-        H' : sizeOfPretype _ _ = Some _,
-        H'' : sizeOfPretype _ _ = Some ?SZ,
-        H''' : SizeLeq _ ?SZ ?SZP = Some _ |- _ ] =>
-      rewrite add_constraints_to_ks_of_kvs in H';
-      simpl in H';
-      rewrite weak_pretype_on_tctx in H';
-      rewrite type_update_type_ctx in H';
-      simpl in H';
-      specialize (sizeOfPretype_subst H H' H'' H''')
+    | [ H : sizeOfPretype (type (add_constraints _ _)) _ = _ |- _ ] =>
+      rewrite add_constraints_to_ks_of_kvs in H;
+      simpl in H;
+      rewrite weak_pretype_on_tctx in H;
+      rewrite type_update_type_ctx in H;
+      simpl in H
     end.
-    rewrite length_collect_tctx.
-    let H' := fresh "H" in intro H'; generalize (H' eq_refl); clear H'.
-    match goal with
-    | [ |- (?A -> _) -> _ ] =>
-      let H' := fresh "H" in
-      assert (H' : A);
-      [ | let H'' := fresh "H" in
-          intro H''; specialize (H'' H') ]
-    end.
-    { rewrite map_map.
-      apply map_ext.
-      intros.
-      destruct_prs; auto. }
+        
+    eapply prove_using_unknown_lemma.
+    {
+      eapply sizeOfPretype_subst.
+      1-2,5,8: eauto.
+      all: auto.
+      - match goal with
+        | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+            replace F2 with F; auto
+        end.
+        rewrite add_constraints_to_ks_of_kvs; simpl.
+        match goal with
+        | [ |- ?A ++ ?B = _ ++ ?C ] =>
+            replace C with B; eauto
+        end.
+        rewrite size_update_type_ctx.
+        match goal with
+        | [ |- map _ ?L = map _ ?L2 ] =>
+            replace L with L2; auto
+        end.
+        apply eq_sym.
+        rewrite <-map_id.
+        apply map_ext.
+        intros.
+        destruct_prs.
+        unfold subst'_sizes.
+        match goal with
+        | [ |- context[map ?F] ] =>
+            replace (map F) with (fun (s : list Size) => s); auto
+        end.
+        apply FunctionalExtensionality.functional_extensionality.
+        intros.
+        apply eq_sym.
+        rewrite <-map_id.
+        apply map_ext.
+        intros.
+        apply pretype_weak_no_effect_on_size.
+      - apply length_collect_szctx.
+      - apply length_collect_tctx.
+      - rewrite map_map.
+        apply map_ext.
+        intros.
+        destruct_prs; auto.
+    }
+    intros; split; auto.
     destructAll.
 
     eexists.
@@ -13764,16 +14353,15 @@ Proof.
       rewrite sizepairs_debruijn_weak_pretype in *.
       auto. }
     split.
+    { rewrite add_constraints_to_ks_of_kvs; simpl; auto. }
+    split.
     2:{
       erewrite size_debruijn_subst_ext; eauto; solve_ineqs.
       rewrite add_constraints_to_ks_of_kvs in *; simpl in *.
       rewrite update_type_ctx_no_effect_on_size_field in *.
       rewrite sizepairs_debruijn_weak_pretype in *.
       eapply SizeLeq_Trans; [ | eauto ].
-      match goal with
-      | [ H : forall _, _ -> SizeLeq _ _ _ = _ |- _ ] => eapply H
-      end.
-      apply length_collect_szctx.
+      auto.
     }
     match goal with
     | [ H : forall _ _ _ _ _, _ |- _ ] => eapply H; eauto
@@ -13856,6 +14444,8 @@ Lemma TypeValid_debruijn_subst_nonfree_var F tau sz q pt sz' hc :
        (update_type_ctx ((sz, q, hc) :: type F) F))
     tau ->
   sizeOfPretype (type F) pt = Some sz' ->
+  SizeValid (size F) sz' ->
+  SizeValid (size F) sz ->
   SizeLeq (size F) sz' sz = Some true ->
   TypeValid F (QualT pt q) ->
   TypeValid
@@ -14001,10 +14591,11 @@ Proof.
     | [ H : context[_ <> SLoc -> _] |- _ ] => rewrite H; solve_ineqs
     end.
     simpl.
-    econstructor; eauto.
+    econstructor.
+    4: erewrite <-qual_fctx_subst_weak_loc; eauto.
+    -- erewrite <-qual_fctx_subst_weak_loc; eauto.
     -- erewrite <-qual_fctx_subst_weak_loc; eauto.
     -- erewrite <-type_fctx_subst_weak_loc; eauto.
-    -- erewrite <-qual_fctx_subst_weak_loc; eauto.
   - erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
     match goal with
     | [ |- TypeValid _ (QualT _ (subst'_qual _ ?Q)) ] =>
@@ -14021,6 +14612,10 @@ Proof.
        erewrite qual_debruijn_subst_ext;
          [ | | eapply debruijn_subst_ext_under_knd ];
          eauto; solve_ineqs.
+    -- erewrite <-qual_fctx_subst_weak_loc; eauto.
+       erewrite qual_debruijn_subst_ext;
+         [ | | eapply debruijn_subst_ext_under_knd ];
+         eauto; solve_ineqs.
     -- eapply RecVarUnderRefPretype_subst_non_pretype; auto.
        --- eapply debruijn_subst_ext_under_knd; eauto.
        --- solve_ineqs.
@@ -14029,6 +14624,37 @@ Proof.
          [ | eapply debruijn_subst_ext_under_knd | ];
          eauto; solve_ineqs.
        erewrite <-type_fctx_subst_weak_loc; eauto.
+    -- match goal with
+       | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+           replace F2 with F; auto
+       end.
+       repeat rewrite add_constraints_to_ks_of_kvs; simpl.
+       match goal with
+       | [ |- ?A ++ ?B = _ ++ ?C ] =>
+           replace C with B; eauto
+       end.
+       rewrite size_update_location_ctx.
+       match goal with
+       | [ |- map _ ?L = map _ ?L2 ] =>
+           replace L with L2; auto
+       end.
+       apply eq_sym.
+       rewrite <-map_id.
+       apply map_ext.
+       intros.
+       destruct_prs.
+       unfold subst'_sizes.
+       match goal with
+       | [ |- context[map ?F] ] =>
+           replace (map F) with (fun (s : list Size) => s); auto
+       end.
+       apply FunctionalExtensionality.functional_extensionality.
+       intros.
+       apply eq_sym.
+       rewrite <-map_id.
+       apply map_ext.
+       intros.
+       apply loc_weak_no_effect_on_size.
     -- match goal with
        | [ |- TypeValid ?F _ ] =>
          match goal with
@@ -14176,6 +14802,7 @@ Proof.
     { erewrite sizeOfPretype_subst_no_effect; eauto; solve_ineqs. }
     split.
     { erewrite size_debruijn_subst_ext; eauto; solve_ineqs. }
+    split; auto.
     split.
     { match goal with
       | [ H : forall _ _, _ |- _ ] => eapply H; eauto
@@ -15807,8 +16434,8 @@ Proof.
   eauto.
 Qed.
 
-Lemma sizeOfPretype_subst_size : forall {pt f kvs sz tctx ptsz},
-    debruijn_subst_ext_conds f (ks_of_kvs kvs) SSize sz ->
+Lemma sizeOfPretype_subst_size : forall {pt f ks sz tctx ptsz},
+    debruijn_subst_ext_conds f ks SSize sz ->
     sizeOfPretype tctx pt = Some ptsz ->
     sizeOfPretype
       (map
@@ -15821,8 +16448,8 @@ Proof.
   apply
     (Pretype_ind'
        (fun pt =>
-          forall f kvs sz tctx ptsz,
-            debruijn_subst_ext_conds f (ks_of_kvs kvs) SSize sz ->
+          forall f ks sz tctx ptsz,
+            debruijn_subst_ext_conds f ks SSize sz ->
             sizeOfPretype tctx pt = Some ptsz ->
             sizeOfPretype
               (map
@@ -15832,8 +16459,8 @@ Proof.
             =
             Some (subst'_size f ptsz))
        (fun pt =>
-          forall f kvs sz tctx ptsz,
-            debruijn_subst_ext_conds f (ks_of_kvs kvs) SSize sz ->
+          forall f ks sz tctx ptsz,
+            debruijn_subst_ext_conds f ks SSize sz ->
             sizeOfType tctx pt = Some ptsz ->
             sizeOfType
               (map
@@ -16599,6 +17226,12 @@ Proof.
     end.
 Qed.
 
+Lemma size_update_qual_ctx : forall {F qctx},
+    size (update_qual_ctx qctx F) = size F.
+Proof.
+  destruct F; simpl; auto.
+Qed.
+
 Lemma TypeValid_debruijn_subst_qual_provable :
   (forall F t,
       TypeValid F t ->
@@ -16672,13 +17305,16 @@ Proof.
       end.
       simpl; auto.
     }
-    econstructor; eauto.
+    econstructor.
+    4: eapply QualLeq_subst'; eauto.
+    -- eapply QualValid_subst; eauto.
     -- eapply QualValid_subst; eauto.
     -- eapply nth_error_type_subst_qual; eauto.
-    -- eapply QualLeq_subst'; eauto.
   - econstructor; eauto.
     -- eapply QualValid_subst; eauto.
     -- eapply QualValid_subst; eauto.
+    -- erewrite under_non_qual_no_effect_on_qual; eauto; solve_ineqs.
+       eapply QualValid_subst; eauto.
     -- erewrite under_non_qual_no_effect_on_qual; eauto; solve_ineqs.
        eapply QualLeq_subst'; eauto.
     -- erewrite under_non_qual_no_effect_on_qual; eauto; solve_ineqs.
@@ -16693,6 +17329,39 @@ Proof.
        erewrite sizeOfPretype_eifc; eauto.
        constructor.
        apply eifc_subst_qual.
+    -- match goal with
+       | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+           replace F2 with F; auto
+       end.
+       repeat rewrite add_constraints_to_ks_of_kvs; simpl.
+       rewrite collect_szctx_subst_qual.
+       match goal with
+       | [ |- ?A ++ ?B = _ ++ ?C ] =>
+           replace C with B; eauto
+       end.
+       rewrite ks_of_kvs_subst_kindvars.
+       match goal with
+       | [ |- map _ ?L = map _ ?L2 ] =>
+           replace L with L2; auto
+       end.
+       apply eq_sym.
+       rewrite <-map_id.
+       rewrite size_update_qual_ctx.
+       apply map_ext.
+       intros.
+       destruct_prs.
+       unfold subst'_sizes.
+       match goal with
+       | [ |- context[map ?F] ] =>
+           replace (map F) with (fun (s : list Size) => s); auto
+       end.
+       apply FunctionalExtensionality.functional_extensionality.
+       intros.
+       apply eq_sym.
+       rewrite <-map_id.
+       apply map_ext.
+       intros.
+       apply qual_weak_no_effect_on_size.
     -- match goal with
        | [ |- TypeValid ?F _ ] =>
          match goal with
@@ -16852,6 +17521,42 @@ Proof.
     erewrite size_debruijn_subst_ext; eauto; solve_ineqs.
     split.
     { erewrite size_fctx_subst_qual; eauto. }
+    split.
+    {
+      match goal with
+      | [ H : SizeValid ?F ?SZ |- SizeValid ?F2 ?SZ ] =>
+          replace F2 with F; auto
+      end.
+      repeat rewrite add_constraints_to_ks_of_kvs; simpl.
+      rewrite collect_szctx_subst_qual.
+      match goal with
+      | [ |- ?A ++ ?B = _ ++ ?C ] =>
+          replace C with B; eauto
+      end.
+      rewrite ks_of_kvs_subst_kindvars.
+      match goal with
+      | [ |- map _ ?L = map _ ?L2 ] =>
+          replace L with L2; auto
+      end.
+      apply eq_sym.
+      rewrite <-map_id.
+      rewrite size_update_qual_ctx.
+      apply map_ext.
+      intros.
+      destruct_prs.
+      unfold subst'_sizes.
+      match goal with
+      | [ |- context[map ?F] ] =>
+          replace (map F) with (fun (s : list Size) => s); auto
+      end.
+      apply FunctionalExtensionality.functional_extensionality.
+      intros.
+      apply eq_sym.
+      rewrite <-map_id.
+      apply map_ext.
+      intros.
+      apply qual_weak_no_effect_on_size.
+    }
     split; eauto.
     erewrite size_fctx_subst_qual; eauto.
   - econstructor; eauto.
@@ -17449,15 +18154,20 @@ Proof.
       erewrite H; eauto; solve_ineqs
     end.
     simpl.
-    econstructor; eauto.
+    econstructor.
+    4: erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
+    -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
     -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
     -- eapply nth_error_type_subst_size; eauto.
-    -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
   - econstructor; eauto.
     -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
        erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
     -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
        erewrite qual_debruijn_subst_ext; eauto; solve_ineqs.
+    -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
+       erewrite qual_debruijn_subst_ext;
+         [ | | eapply debruijn_subst_ext_under_knd ];
+         eauto; solve_ineqs.
     -- erewrite <-qual_fctx_subst_weak_size_subst_size; eauto.
        erewrite qual_debruijn_subst_ext;
          [ | | eapply debruijn_subst_ext_under_knd ];
@@ -17482,6 +18192,7 @@ Proof.
          replace (A :: map F L) with (map F (A :: L)) by auto
        end.
        erewrite sizeOfPretype_subst_size; eauto.
+    -- eapply SizeValid_subst; eauto.
     -- match goal with
        | [ |- TypeValid ?F _ ] =>
          match goal with
@@ -17584,6 +18295,8 @@ Proof.
     { erewrite sizeOfPretype_subst_no_effect; eauto; solve_ineqs.
       erewrite type_subst_size; eauto.
       erewrite sizeOfPretype_subst_size; eauto. }
+    split.
+    { eapply SizeValid_subst; eauto. }
     split.
     { eapply SizeValid_subst; eauto. }
     split; eauto.
@@ -17698,7 +18411,29 @@ Proof.
     -- simpl; apply simpl_debruijn_subst_ext_conds.
     -- simpl; auto.
   - specialize TypeValid_debruijn_subst_size_provable.
-    let H' := fresh "H" in intro H'; destruct H' as [_ [_ [_ H']]]; eapply H'; eauto.
+    let H' := fresh "H" in intro H'; destruct H' as [_ [_ [_ H']]]; eapply H'.
+    5:{
+      eapply Forall_impl.
+      2: eauto.
+      intros.
+      simpl in *.
+      destructAll.
+      eauto.
+    }
+    4:{
+      eapply Forall_impl.
+      2:{
+        match goal with
+        | [ H : SizeValid _ ?SZ, H' : context[SizeLeq _ _ ?SZ] |- _ ] =>
+            exact H'
+        end.
+      }
+      intros.
+      simpl in *.
+      destructAll.
+      eauto.
+    }
+    all: eauto.
     -- match goal with
        | [ H : FunTypeValid _ (FunT _ _) |- _ ] => inv H
        end.
@@ -17718,7 +18453,29 @@ Proof.
     -- simpl; apply simpl_debruijn_subst_ext_conds.
     -- simpl; auto.
   - specialize TypeValid_debruijn_subst_qual_provable.
-    let H' := fresh "H" in intro H'; destruct H' as [_ [_ [_ H']]]; eapply H'; eauto.
+    let H' := fresh "H" in intro H'; destruct H' as [_ [_ [_ H']]]; eapply H'.
+    5:{
+      eapply Forall_impl.
+      2: eauto.
+      intros.
+      simpl in *.
+      destructAll.
+      eauto.
+    }
+    4:{
+      eapply Forall_impl.
+      2:{
+        match goal with
+        | [ H : QualValid _ ?SZ, H' : context[QualLeq _ _ ?SZ] |- _ ] =>
+            exact H'
+        end.
+      }
+      intros.
+      simpl in *.
+      destructAll.
+      eauto.
+    }
+    all: eauto.
     -- match goal with
        | [ H : FunTypeValid _ (FunT _ _) |- _ ] => inv H
        end.
@@ -17819,26 +18576,6 @@ Proof.
   induction idxs; intros; simpl in *; auto.
   rewrite IHidxs; auto.
 Qed.
-
-Theorem list_sub_nth_error {T}: forall (l1 l2: list T) n x,
-    list_sub l1 l2 ->
-    nth_error l1 n = Some x ->
-    nth_error l2 n = Some x.
-Proof.
-  intros. generalize dependent n.
-  induction H; intros; destruct n; inversion H0; subst; simpl; auto.
-  rewrite H2. eauto.
-Qed.
-
-Theorem list_sub_app {T}: forall (l1 l2: list T),
-    list_sub l1 l2 -> exists l', l1 ++ l' = l2.
-Proof.
-  intros l1. induction l1; intros; inversion H; subst.
-  - eexists; simpl; auto.
-  - simpl.
-    specialize (IHl1 L' H3). destruct IHl1.
-    exists x. f_equal. auto.
-Qed.
   
 Lemma type_update_linear_ctx F L :
   type (update_linear_ctx L F) = type F.
@@ -17887,43 +18624,6 @@ Proof.
   - apply Forall_cons; auto.
 Qed.
 
-Lemma cons_append: forall {T} (x: T) L,
-    x::L = [x]++L.
-Proof.
-  induction L; auto.
-Qed.
-
-Lemma sizeOfType_add_ctx t L L' sz:
-  sizeOfType L' t = Some sz ->
-  sizeOfType (L' ++ L) t = Some sz.
-Proof.
-  generalize dependent L.
-  generalize dependent L'.
-  generalize dependent sz.
-  induction t using Typ_ind' with
-      (H := fun h => True)
-      (P := fun p => forall sz L L', sizeOfPretype L  p = Some sz -> sizeOfPretype (L ++ L') p = Some sz)
-      (F := fun f => True)
-      (A := fun a => True); auto; intros.
-  - generalize dependent L'. generalize dependent v.
-    induction L; intros; destruct v; try discriminate H.
-    + injection H as h. subst. auto.
-    + apply IHL. auto.
-  - rewrite Forall_forall in H.
-    generalize dependent sz. generalize dependent L'. generalize dependent L.
-    induction l; intros; simpl in *; auto.
-    destruct (sizeOfType L a) eqn:Eq.
-    + erewrite H; eauto.
-      destruct (fold_size (map (sizeOfType L) l)) eqn:Eq'.
-      ++ erewrite IHl; eauto.
-      ++ discriminate H0. 
-    + discriminate H0.
-  - simpl in *.
-    rewrite cons_append.
-    rewrite app_assoc.
-    apply IHt. auto.
-Qed.
-
 Lemma sizeOfType_empty_ctx t L sz:
   sizeOfType [] t = Some sz ->
   sizeOfType L t = Some sz.
@@ -17932,35 +18632,6 @@ Proof.
   rewrite  <- app_nil_l with (l := L).
   apply sizeOfType_add_ctx.
   auto.
-Qed.
-
-Lemma sizeOfPretype_add_ctx p L L' sz:
-  sizeOfPretype L' p = Some sz ->
-  sizeOfPretype (L' ++ L) p = Some sz.
-Proof.
-  revert L L' sz.
-  induction p; intros; auto; simpl in *.
-  - generalize dependent v. generalize dependent L.
-    induction L'; intros; destruct v; auto; inversion H; subst; auto.
-    simpl. rewrite IHL'; auto.
-  - generalize dependent L'.
-    generalize dependent L.
-    generalize dependent sz.
-    induction l; intros; auto.
-    simpl. simpl in H.
-    destruct (sizeOfType L' a) eqn:Eq.
-    + erewrite sizeOfType_add_ctx; eauto.
-      destruct (fold_size (map (sizeOfType L') l)) eqn:Eq'.
-      ++ erewrite IHl; eauto.
-      ++ inversion H.
-    + inversion H.
-  - rewrite cons_append.
-    rewrite app_assoc.
-    apply sizeOfType_add_ctx.
-    rewrite <- cons_append.
-    auto.
-  - apply sizeOfType_add_ctx.
-    auto.
 Qed.
 
 Lemma sizeOfPretype_empty_ctx pt sz L :
@@ -17990,91 +18661,6 @@ Proof.
   intros.
   eapply SizeLeq_Bigger_Ctx; eauto.
   constructor.
-Qed.
-
-Lemma NoCapsPretype_list_sub : forall {pt L L'},
-    list_sub L L' ->
-    NoCapsPretype L pt = true ->
-    NoCapsPretype L' pt = true.
-Proof.
-  apply
-    (Pretype_ind'
-       (fun pt =>
-          forall L L',
-            list_sub L L' ->
-            NoCapsPretype L pt = true ->
-            NoCapsPretype L' pt = true)
-       (fun t =>
-          forall L L',
-            list_sub L L' ->
-            NoCapsTyp L t = true ->
-            NoCapsTyp L' t = true)
-       (fun _ => True)
-       (fun _ => True)
-       (fun _ => True)).
-  all: auto.
-
-  - intros.
-    simpl in *.
-    match goal with
-    | [ H : context[nth_error ?L ?V] |- _ ] =>
-      remember (nth_error L V) as obj;
-        revert H; generalize (eq_sym Heqobj); case obj; intros
-    end.
-    2:{
-      match goal with
-      | [ H : false = true |- _ ] => inversion H
-      end.
-    }
-    match goal with
-    | [ X : HeapableConstant |- _ ] => destruct X
-    end.
-    2:{
-      match goal with
-      | [ H : false = true |- _ ] => inversion H
-      end.
-    }
-    match goal with
-    | [ H : list_sub _ _, H' : nth_error _ _ = Some _ |- _ ] =>
-      specialize (list_sub_nth_error _ _ _ _ H H');
-        let H'' := fresh "H" in intro H''; rewrite H''
-    end.
-    auto.
-  - intros.
-    simpl in *.
-    rewrite forallb_forall in *.
-    rewrite Forall_forall in *.
-    intros.
-    repeat match goal with
-           | [ H : forall _, _, H' : In _ _ |- _ ] =>
-             specialize (H _ H')
-           end.
-    eauto.
-  - intros.
-    simpl in *.
-    match goal with
-    | [ H : forall _ _, _ |- _ ] =>
-      eapply H; [ | eauto ]
-    end.
-    constructor; auto.
-Qed.
-
-Lemma NoCapsPretype_empty_ctx pt L :
-  NoCapsPretype [] pt = true ->
-  NoCapsPretype L pt = true.
-Proof.
-  intros.
-  eapply NoCapsPretype_list_sub; eauto.
-  constructor.
-Qed.
-
-Lemma NoCapsType_empty_ctx t L :
-  NoCapsTyp [] t = true ->
-  NoCapsTyp L t = true.
-Proof.
-  intros.
-  destruct t; simpl in *.
-  apply NoCapsPretype_empty_ctx; auto.
 Qed.
 
 Lemma QualValid_empty_ctx_var v:
@@ -18135,384 +18721,6 @@ Proof.
   - apply QualValid_empty_ctx. auto.
 Qed.
 
-Lemma sizeOfPretype_sub_ctx L L' p sz:
-  list_sub L L' ->
-  sizeOfPretype L p = Some sz ->
-  sizeOfPretype L' p = Some sz.
-Proof.
-  intros.
-  apply list_sub_app in H. destruct H.
-  rewrite <- H.
-  eapply sizeOfPretype_add_ctx.
-  auto.
-Qed.
-
-Lemma sizeOfType_sub_ctx L L' t sz:
-  list_sub L L' ->
-  sizeOfType L t = Some sz ->
-  sizeOfType L' t = Some sz.
-Proof.
-  intros.
-  apply list_sub_app in H. destruct H.
-  rewrite <- H.
-  eapply sizeOfType_add_ctx. auto.
-Qed.
-
-Inductive Function_Ctx_sub: Function_Ctx -> Function_Ctx -> Prop :=
-| F_Ctx_sub: forall F F',
-    list_sub (type F) (type F') ->
-    list_sub (qual F) (qual F') ->
-    list_sub (size F) (size F') ->
-    location F <= location F' ->
-    Function_Ctx_sub F F'.
-
-Ltac list_sub_subst :=
-  match goal with
-  | [ H : list_sub ?l1 _ |- list_sub (map _ ?l1) _ ] =>
-    induction H as [x | x1 x2 x3 x4 x5]; constructor; eapply x5;
-    constructor; auto
-  end.
-
-Ltac func_sub_subst H F F' :=
-  inversion H; subst; destruct F; destruct F'; subst;
-  constructor; simpl in *;try list_sub_subst; lia.
-
-Theorem Function_Ctx_sub_debruijn_weak_SLoc F F':
-  Function_Ctx_sub F F' ->
-  Function_Ctx_sub
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SLoc)) F)
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SLoc)) F').
-Proof.
-  intros.
-  func_sub_subst H F F'.
-Qed.
-
-Theorem Function_Ctx_sub_debruijn_weak_SPretype F F':
-  Function_Ctx_sub F F' ->
-  Function_Ctx_sub
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SPretype)) F)
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SPretype)) F').
-Proof.
-  intros.
-  func_sub_subst H F F'.
-Qed.
-
-Theorem Function_Ctx_sub_debruijn_weak_SQual F F':
-  Function_Ctx_sub F F' ->
-  Function_Ctx_sub
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SQual)) F)
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SQual)) F').
-Proof.
-  intros.
-  func_sub_subst H F F'.
-Qed.
-
-Theorem Function_Ctx_sub_debruijn_weak_SSize F F':
-  Function_Ctx_sub F F' ->
-  Function_Ctx_sub
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SSize)) F)
-    (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SSize)) F').
-Proof.
-  intros.
-  func_sub_subst H F F'.
-Qed.
-
-Theorem Function_Ctx_sub_add_constraint F F' a:
-  Function_Ctx_sub F F' ->
-  Function_Ctx_sub (add_constraint F a) (add_constraint F' a).
-Proof.
-  revert F F'.
-  induction a; intros; simpl.
-  - apply Function_Ctx_sub_debruijn_weak_SLoc.
-    inversion H; subst.
-    constructor; destruct F; destruct F'; simpl; auto.
-    simpl in H3. lia.
-  - apply Function_Ctx_sub_debruijn_weak_SQual.
-    inversion H; destruct F; destruct F'; subst; simpl.
-    constructor; simpl; auto.
-    constructor. auto.
-  - apply Function_Ctx_sub_debruijn_weak_SSize.
-    inversion H; destruct F; destruct F'; subst; simpl.
-    constructor; simpl; auto.
-    constructor; auto.
-  - apply Function_Ctx_sub_debruijn_weak_SPretype.
-    inversion H; subst.
-    constructor; destruct F; destruct F'; simpl; auto.
-    constructor; auto.
-Qed.
-
-Theorem Function_Ctx_sub_add_constraints F F' l:
-  Function_Ctx_sub F F' ->
-  Function_Ctx_sub (add_constraints F l) (add_constraints F' l).
-Proof.
-  revert F F'. induction l; intros; auto.
-  simpl.
-  eapply IHl. eapply Function_Ctx_sub_add_constraint; auto.
-Qed.
-
-Lemma QualLeq_empty_ctx q q' L :
-  QualLeq [] q q' = Some true ->
-  QualLeq L q q' = Some true.
-Proof.
-  intros.
-  eapply QualLeq_Bigger_Ctx; eauto.
-  constructor.
-Qed.
-
-Lemma QualLeq_sub: forall F F' q q',
-    Function_Ctx_sub F F' ->
-    QualLeq (qual F) q q' = Some true ->
-    QualLeq (qual F') q q' = Some true.
-Proof.
-  intros.
-  eapply QualLeq_Bigger_Ctx; eauto.
-  inversion H; auto.
-Qed.
-
-Lemma SizeLeq_sub: forall F F' sz sz',
-    Function_Ctx_sub F F' ->
-    SizeLeq (size F) sz sz' = Some true ->
-    SizeLeq (size F') sz sz' = Some true.
-Proof.
-  intros.
-  eapply SizeLeq_Bigger_Ctx; eauto.
-  inversion H; auto.
-Qed.
-
-Theorem Function_Ctx_sub_Empty: forall F,
-    Function_Ctx_sub empty_Function_Ctx F.
-Proof.
-  intros. constructor; try constructor; auto.
-  simpl.
-  lia.
-Qed.
-
-Theorem list_sub_refl {T}: forall (l: list T),
-    list_sub l l.
-Proof.
-  intros. induction l; constructor; auto.
-Qed.
-  
-Theorem Function_Ctx_sub_refl: forall F,
-    Function_Ctx_sub F F.
-Proof.
-  destruct F. constructor; simpl; try apply list_sub_refl. lia.
-Qed.
-
-Lemma Function_Ctx_sub_qual_nth_error: forall F F' n q,
-    Function_Ctx_sub F F' ->
-    nth_error (qual F) n = Some q ->
-    nth_error (qual F') n = Some q.
-Proof.
-  intros. induction H.
-  eapply list_sub_nth_error; eauto.
-Qed.
-
-Lemma Function_Ctx_sub_type_nth_error: forall F F' n q,
-    Function_Ctx_sub F F' ->
-    nth_error (type F) n = Some q ->
-    nth_error (type F') n = Some q.
-Proof.
-  intros. induction H.
-  eapply list_sub_nth_error; eauto.
-Qed.
-
-Lemma Function_Ctx_sub_size_nth_error: forall F F' n q,
-    Function_Ctx_sub F F' ->
-    nth_error (size F) n = Some q ->
-    nth_error (size F') n = Some q.
-Proof.
-  intros. induction H.
-  eapply list_sub_nth_error; eauto.
-Qed.
-
-Lemma QualValid_sub: forall F F' q,
-    Function_Ctx_sub F F' -> QualValid (qual F) q -> QualValid (qual F') q.
-Proof.
-  intros. inversion H0; subst.
-  econstructor; eauto.
-  eapply QualVarValid. reflexivity.
-  eapply Function_Ctx_sub_qual_nth_error; eauto.
-Qed.
-
-Lemma LocValid_sub: forall F F' v,
-    Function_Ctx_sub F F' ->
-    LocValid (location F) v ->
-    LocValid (location F') v.
-Proof.
-  intros. inversion H. inversion H0; subst.
-  - econstructor; eauto.
-  - eapply LocVValid; eauto. lia.
-Qed.
-
-Lemma SizeValid_sub: forall F F' sz,
-    Function_Ctx_sub F F' ->
-    SizeValid (size F) sz ->
-    SizeValid (size F') sz.
-Proof.
-  intros. inversion H; subst.
-  induction H0; subst.
-  - eapply SizeConstValid; eauto.
-  - eapply SizePlusValid; eauto.
-  - eapply SizeVarValid; eauto.
-    eapply list_sub_nth_error; eauto.
-Qed.
-
-Lemma KindVarValid_sub k F F':
-  Function_Ctx_sub F F' ->
-  KindVarValid F k ->
-  KindVarValid F' k.
-Proof.
-  intros.
-  induction k; simpl in *; auto; destruct H0; split; try rewrite Forall_forall in *; intros;
-    match goal with
-    | [ |- (QualValid _ _)] => eapply QualValid_sub; eauto
-    | [ |- (SizeValid _ _)] => eapply SizeValid_sub; eauto
-    end.
-Qed.
-
-Lemma KindVarsValid_sub l F F':
-  Function_Ctx_sub F F' ->
-  KindVarsValid F l ->
-  KindVarsValid F' l.
-Proof.
-  revert F F'.
-  induction l; intros; constructor; inversion H0; subst.
-  - eapply KindVarValid_sub; eauto.
-  - eapply IHl; eauto.
-    apply Function_Ctx_sub_add_constraint; auto.
-Qed.
-
-Lemma KindVarsValid_empty_ctx l F:
-  KindVarsValid empty_Function_Ctx l -> KindVarsValid F l.
-Proof.
-  intros.
-  eapply KindVarsValid_sub; eauto.
-  apply Function_Ctx_sub_Empty.
-Qed.
-
-Lemma TypeValid_sub: forall tau F F',
-    (TypeValid F tau) ->
-    Function_Ctx_sub F F' ->
-    (TypeValid F' tau).
-Proof.
-  intro tau. destruct tau.
-  generalize dependent q.
-  induction p using Pretype_ind' with
-      (Q := fun tau => forall F F', Function_Ctx_sub F F' -> TypeValid F tau -> TypeValid F' tau)
-      (F := fun tau => forall F F', Function_Ctx_sub F F' -> FunTypeValid F tau -> FunTypeValid F' tau)
-      (H := fun tau => forall F F', Function_Ctx_sub F F' -> HeapTypeValid F tau -> HeapTypeValid F' tau)
-      (A := fun tau => forall F F', Function_Ctx_sub F F' -> ArrowTypeValid F tau -> ArrowTypeValid F' tau); intros; auto; inversion H; subst; try econstructor; eauto;
-    try match goal with
-        | [ |- (QualValid _ _)] => eapply QualValid_sub; eauto
-        | [ |- (LocValid _ _)] => eapply LocValid_sub; eauto
-        | [ |- (QualLeq _ _ _ = Some true)] => eapply QualLeq_sub; eauto
-        | [ |- (SizeValid _ _)] => eapply SizeValid_sub; eauto                                                             
-        end.
-  - eapply Function_Ctx_sub_type_nth_error; eauto.
-  - inversion H0. subst. auto.
-  - inversion H0. subst. auto.
-  - inversion H0; subst.
-    inversion H; subst.
-    inversion H8; subst.
-    apply Forall_cons.
-    + destruct x. eapply QualLeq_sub; eauto.
-    + rewrite Forall_forall. intros. destruct x0.
-      rewrite Forall_forall in H12.
-      eapply QualLeq_sub. eauto.
-      specialize (H12 (QualT p q0) H4).
-      exact H12.
-  - inversion H0; subst.
-    inversion H. inversion H9; subst.
-    apply Forall_cons. 
-    + eapply H7; eauto.
-    + rewrite Forall_forall. intros.
-      rewrite Forall_forall in H3. eapply H3; eauto.
-      rewrite Forall_forall in H14. eauto.
-  - simpl. simpl in H10.
-    eapply sizeOfPretype_sub_ctx; eauto.
-    constructor. inversion H0; subst; auto.
-  - eapply IHp; eauto.
-    eapply Function_Ctx_sub_debruijn_weak_SPretype.
-    inversion H0; subst. destruct F; destruct F'; subst; auto.
-    constructor; simpl; auto.
-    constructor; auto.
-  - eapply IHp; eauto.
-    apply Function_Ctx_sub_debruijn_weak_SLoc.
-
-    inversion H0; destruct F; destruct F'; subst; auto; simpl in *.
-    constructor; simpl; auto. lia.
-  - inversion H0; subst.
-    eapply KindVarsValid_sub; eauto.
-  - inversion H0; subst. eapply IHp; eauto.
-    eapply Function_Ctx_sub_add_constraints; auto.
-  - inversion H2; subst.
-    rewrite Forall_forall. intros.
-    rewrite Forall_forall in H0. eapply H0; eauto.
-    rewrite Forall_forall in H7; eauto.
-  - inversion H2. inversion H; inversion H8; subst.
-    apply Forall_cons.
-    + eapply H3; eauto.
-    + rewrite Forall_forall. intros.
-      rewrite Forall_forall in H13. eapply H13; eauto.
-      rewrite Forall_forall in H17. eauto.
-  - inversion H2; subst.
-    rewrite Forall_forall. intros.
-    rewrite Forall_forall in H0. eapply H0; eauto.
-    rewrite Forall_forall in H9. eauto.
-  - inversion H1; subst.
-    inversion H; subst. inversion H6; subst.
-    apply Forall_cons.
-    + eapply H2; eauto.
-    + rewrite Forall_forall. intros.
-      rewrite Forall_forall in H8. eapply H8; eauto.
-      rewrite Forall_forall in H10; eauto.
-  - inversion H1; subst.
-    inversion H6; subst.
-    apply Forall_cons.
-    + destruct H7. destruct H4. destruct H5. destruct H7.
-      exists x0. split. inversion H0; subst. eapply sizeOfType_sub_ctx; eauto. 
-      split. eapply SizeValid_sub; eauto.
-      split. inversion H; subst.
-      destruct x. eapply H12; eauto.
-      eapply SizeLeq_sub; eauto.
-    + rewrite Forall_forall. intros.
-      rewrite Forall_forall in H8.
-      specialize (H8 x0 H4).
-      destruct H8. destruct H5. destruct H8. destruct H9.
-      exists x1.
-      split. inversion H0. subst. eapply sizeOfType_sub_ctx; eauto.
-      split. eapply SizeValid_sub; eauto.
-      split. inversion H; subst. rewrite Forall_forall in H14.
-      specialize (H14 x0 H4).
-      destruct x0. eapply H14; eauto.
-      eapply SizeLeq_sub; eauto.
-  - inversion H0; subst.
-    constructor.
-    eapply IHp; eauto.
-    eapply QualLeq_sub; eauto.
-  - inversion H0; subst.
-    eapply SizeValid_sub; eauto.
-    eapply Function_Ctx_sub_refl.
-  - inversion H0; subst.
-    eapply QualValid_sub; eauto.
-    apply Function_Ctx_sub_refl.
-  - inversion H0; subst.
-    eapply IHp; eauto.
-    eapply Function_Ctx_sub_debruijn_weak_SPretype.
-    constructor; destruct F; destruct F'; simpl; auto.
-    constructor. auto.
-Qed.
-
-Lemma TypeValid_empty_ctx: forall tau F,
-    (TypeValid empty_Function_Ctx tau) ->
-    (TypeValid F tau).
-Proof.
-  intros.
-  eapply TypeValid_sub; eauto.
-  apply Function_Ctx_sub_Empty.
-Qed.
-
 Lemma InstIndValid_Function_Ctx_empty : forall {F F' kvs tau1 tau2 idx},
     Function_Ctx_empty F ->
     InstIndValid F (FunT kvs (Arrow tau1 tau2)) idx ->
@@ -18535,6 +18743,8 @@ Proof.
        end.
   - econstructor.
     -- eapply sizeOfPretype_empty_ctx; eauto.
+    -- eapply SizeValid_empty_ctx; eauto.
+    -- eapply SizeValid_empty_ctx; eauto.
     -- eapply SizeLeq_Bigger_Ctx; eauto.
        constructor.
     -- eapply TypeValid_sub; eauto.
@@ -18551,15 +18761,27 @@ Proof.
   - econstructor.
     -- eapply QualValid_empty_ctx; eauto.
     -- prepare_Forall.
-       eapply QualLeq_empty_ctx; eauto.
+       destructAll.
+       split.
+       --- eapply QualValid_empty_ctx; eauto.
+       --- eapply QualLeq_empty_ctx; eauto.
     -- prepare_Forall.
-       eapply QualLeq_empty_ctx; eauto.
+       destructAll.
+       split.
+       --- eapply QualValid_empty_ctx; eauto.
+       --- eapply QualLeq_empty_ctx; eauto.
   - econstructor.
     -- eapply SizeValid_empty_ctx; eauto.
     -- prepare_Forall.
-       eapply SizeLeq_empty_ctx; eauto.
+       destructAll.
+       split.
+       --- eapply SizeValid_empty_ctx; eauto.
+       --- eapply SizeLeq_empty_ctx; eauto.
     -- prepare_Forall.
-       eapply SizeLeq_empty_ctx; eauto.
+       destructAll.
+       split.
+       --- eapply SizeValid_empty_ctx; eauto.
+       --- eapply SizeLeq_empty_ctx; eauto.
 Qed.
 
 Lemma InstInd_app_kvs : forall {kvs kvs' atyp kvsres atypres atyp' idx},
@@ -21769,7 +21991,7 @@ Inductive InstIndValid_at : Function_Ctx -> (Ind -> nat) -> Index -> Prop :=
     location F >= ks SLoc ->
     InstIndValid (InstFunctionCtxInd_under_ks F ks (LocI l))
                  (FunT [LOC] (Arrow [] []))
-                 (LocI l) ->
+                 (LocI (subst'_loc (weaks' ks) l)) ->
     InstIndValid_at F ks (LocI l)
 | InstIndValidQual_at_None : forall F ks q,
     nth_error (qual F) (ks SQual) = None ->
@@ -21777,8 +21999,10 @@ Inductive InstIndValid_at : Function_Ctx -> (Ind -> nat) -> Index -> Prop :=
 | InstIndValidQual_at_Some : forall F ks q qs0 qs1,
     nth_error (qual F) (ks SQual) = Some (qs0, qs1) ->
     InstIndValid (InstFunctionCtxInd_under_ks F ks (QualI q))
-                 (FunT [QUAL qs0 qs1] (Arrow [] []))
-                 (QualI q) ->
+                 (FunT [QUAL (subst'_quals (under_ks' ks (subst'_of (ext SQual q id))) qs0)
+                             (subst'_quals (under_ks' ks (subst'_of (ext SQual q id))) qs1)]
+                       (Arrow [] []))
+                 (QualI (subst'_qual (weaks' ks) q)) ->
     InstIndValid_at F ks (QualI q)
 | InstIndValidSize_at_None : forall F ks sz,
     nth_error (size F) (ks SSize) = None ->
@@ -21786,8 +22010,11 @@ Inductive InstIndValid_at : Function_Ctx -> (Ind -> nat) -> Index -> Prop :=
 | InstIndValidSize_at_Some : forall F ks sz szs0 szs1,
     nth_error (size F) (ks SSize) = Some (szs0, szs1) ->
     InstIndValid (InstFunctionCtxInd_under_ks F ks (SizeI sz))
-                 (FunT [SIZE szs0 szs1] (Arrow [] []))
-                 (SizeI sz) ->
+                 (FunT [SIZE
+                          (subst'_sizes (under_ks' ks (subst'_of (ext SSize sz id))) szs0)
+                          (subst'_sizes (under_ks' ks (subst'_of (ext SSize sz id))) szs1)]
+                       (Arrow [] []))
+                 (SizeI (subst'_size (weaks' ks) sz)) ->
     InstIndValid_at F ks (SizeI sz)
 | InstIndValidPretype_at_None : forall F ks pt,
     nth_error (type F) (ks SPretype) = None ->
@@ -21796,7 +22023,7 @@ Inductive InstIndValid_at : Function_Ctx -> (Ind -> nat) -> Index -> Prop :=
     nth_error (type F) (ks SPretype) = Some (sz, q, hc) ->
     InstIndValid (InstFunctionCtxInd_under_ks F ks (PretypeI pt))
                  (FunT [TYPE sz q hc] (Arrow [] []))
-                 (PretypeI pt) ->
+                 (PretypeI (subst'_pretype (weaks' ks) pt)) ->
     InstIndValid_at F ks (PretypeI pt).
 
 Lemma ks_of_kvs_to_ks_of_idxs : forall {idxs atyp kvs F},
@@ -22288,7 +22515,7 @@ Proof.
     match goal with
     | [ H : LocValid 0 _ |- _ ] => inv H
     end.
-    -- econstructor; eauto.
+    -- econstructor; simpl; eauto.
     -- match goal with
        | [ H : _ < 0 |- _ ] => inv H
        end.       
@@ -22301,44 +22528,71 @@ Proof.
        repeat rewrite app_nil_r.
        econstructor.
        --- eapply sizeOfPretype_empty_ctx; eauto.
+           erewrite TypeValid_empty_imp_value_closed; eauto.
+           constructor; auto.
+       --- eapply SizeValid_empty_ctx; eauto.
        --- repeat rewrite SizeValid_empty_imp_value_closed; auto.
-            apply SizeLeq_empty_ctx; auto.
-       --- repeat  rewrite QualValid_empty_imp_value_closed; auto.
-            eapply TypeValid_sub; eauto.
-            constructor; simpl; try constructor.
-            lia.
+           eapply SizeValid_empty_ctx; eauto.
+       --- repeat rewrite SizeValid_empty_imp_value_closed; auto.
+           apply SizeLeq_empty_ctx; eauto.
+       --- repeat rewrite QualValid_empty_imp_value_closed; auto.
+           eapply TypeValid_sub; eauto.
+           ---- erewrite TypeValid_empty_imp_value_closed; eauto.
+                constructor; auto.
+           ---- constructor; simpl; try constructor; auto.
+                lia.
        --- intros.
-            match goal with
-            | [ H : ?A, H' : ?A -> _ |- _ ] =>
-              specialize (H' H)
-            end.
-            unfold heapable in *.
-            simpl in *.
-            eapply NoCapsPretype_empty_ctx; eauto.
+           match goal with
+           | [ H : ?A, H' : ?A -> _ |- _ ] =>
+             specialize (H' H)
+           end.
+           unfold heapable in *.
+           simpl in *.
+           eapply NoCapsPretype_empty_ctx; eauto.
+           erewrite TypeValid_empty_imp_value_closed; eauto.
+           constructor; auto.
   - eapply InstIndValidQual_at_Some; simpl.
     -- rewrite <-length_collect_qctx.
        rewrite nth_error_prefix.
        eauto.
     -- constructor.
        --- eapply QualValid_empty_ctx; eauto.
+           erewrite QualValid_empty_imp_value_closed; eauto.
        --- repeat rewrite QualValid_empty_imp_subst_quals_no_effect; auto.
            prepare_Forall.
-           eapply QualLeq_empty_ctx; eauto.
+           destructAll.
+           split.
+           ---- eapply QualValid_empty_ctx; eauto.
+           ---- eapply QualLeq_empty_ctx; eauto.
+                erewrite QualValid_empty_imp_value_closed; eauto.
        --- repeat rewrite QualValid_empty_imp_subst_quals_no_effect; auto.
            prepare_Forall.
-           eapply QualLeq_empty_ctx; eauto.
+           destructAll.
+           split.
+           ---- eapply QualValid_empty_ctx; eauto.
+           ---- eapply QualLeq_empty_ctx; eauto.
+                erewrite QualValid_empty_imp_value_closed; eauto.
   - eapply InstIndValidSize_at_Some; simpl.
     -- rewrite <-length_collect_szctx.
        rewrite nth_error_prefix.
        eauto.
     -- constructor.
        --- eapply SizeValid_empty_ctx; eauto.
+           erewrite SizeValid_empty_imp_value_closed; eauto.
        --- repeat rewrite SizeValid_empty_imp_subst_sizes_no_effect; auto.
            prepare_Forall.
-           eapply SizeLeq_empty_ctx; eauto.
+           destructAll.
+           split.
+           ---- eapply SizeValid_empty_imp_all_SizeValid; eauto.
+           ---- eapply SizeLeq_empty_ctx; eauto.
+                erewrite SizeValid_empty_imp_value_closed; eauto.
        --- repeat rewrite SizeValid_empty_imp_subst_sizes_no_effect; auto.
            prepare_Forall.
-           eapply SizeLeq_empty_ctx; eauto.
+           destructAll.
+           split.
+           ---- eapply SizeValid_empty_imp_all_SizeValid; eauto.
+           ---- eapply SizeLeq_empty_ctx; eauto.
+                erewrite SizeValid_empty_imp_value_closed; eauto.
 Qed.
 
 Lemma InstIndValid_index_closed : forall {F ft idx},

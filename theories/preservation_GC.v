@@ -1467,6 +1467,7 @@ Module PreservationGC (M : Memory) (T : MemTyping M).
     -  econstructor; auto.
        + eassumption.
        + eassumption.
+       + eassumption.
        + eapply HasTypeValue_GC; eauto.
   Qed.
 
@@ -1578,6 +1579,7 @@ Module PreservationGC (M : Memory) (T : MemTyping M).
           -- destructAll. do 4 eexists. split. eassumption. simpl. now sets.
 
     -  econstructor; auto.
+       + eassumption.
        + eassumption.
        + eassumption.
        + eapply HasTypeValue_GC_heap; eauto.
@@ -1929,6 +1931,8 @@ Module PreservationGC (M : Memory) (T : MemTyping M).
 
       eapply restrict_StoreTyping_empty_comm.
 
+      auto.
+
     - HasTypeEauto.
       eapply H2; try eassumption.
 
@@ -1964,13 +1968,17 @@ Module PreservationGC (M : Memory) (T : MemTyping M).
     - (* Frame *)
       eapply FrameTyp. eassumption. eassumption. eassumption.
       eapply H3; eassumption. eassumption.
+      auto.
+      auto.
 
     - (* ChangeBegLocal *)
-      eapply ChangeBegLocalTyp; [ | eauto ].
+      eapply ChangeBegLocalTyp; [ | | eauto ].
+      auto.
       auto.
 
     - (* ChangeEndLocal *)
-      eapply ChangeEndLocalTyp; [ | eauto ].
+      eapply ChangeEndLocalTyp; [ | | eauto ].
+      auto.
       auto.
       
     - (* Closure *)

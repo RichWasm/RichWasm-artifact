@@ -23,6 +23,9 @@ docker run -it richwasm
 ### Running a pre-built image 
 
 We have provided a pre-built docker image on [DockerHub](https://hub.docker.com/r/richwasm/richwasm-artifact-image). Get the container running with the following commands.
+
+Note that this pre-built Docker image contains the artifact as it was when we submitted it to artifact evaluation for PLDI24. However, the proofs have been updated since the artifact was submitted (see the below "Note about Paper" in the "Coq Proofs" section of this README), so this pre-built Docker image contains an older version of the proofs than the proofs in this GitHub repo.
+
 ```
 # Pull Docker image from DockerHub
 docker pull richwasm/richwasm-artifact-image
@@ -104,9 +107,9 @@ The reduction relation is split across few relations each one representing reduc
 
 - Reduction steps that do not involve the heap:  `Reduce_simple`, file `reduction.v` line 211
 - Reduction steps that involve the heap: `Reduce_full`, file `reduction.v` line 451
-- Reduction relation with congruence rules: `Reduce`, file `reduction.v` line 615
+- Reduction relation with congruence rules: `Reduce`, file `reduction.v` line 627
 - Garbage-collection step: `GC_step`, file `reduction.v` line 659
-- Top-level reduction relation:`Reduce_GC`, file `reduction.v` line 682
+- Top-level reduction relation: `Reduce_GC`, file `reduction.v` line 682
 
 #### Section 4
 
@@ -114,26 +117,31 @@ The reduction relation is split across few relations each one representing reduc
 - Function environment: `Function_Ctx`, file `typing.v` line 449
 - Module environment: `Module_Ctx`, file `typing.v` line 441
 - Store typing: `StoreTyping`, file `typing.v` line 702
-- Value typing: `HasTypeValue`, file `typing.v` line 1509
-- Instruction typing: `HasTypeInstruction`, file `typing.v` line 1861
-- Store typing: `HasTypeStore`, file `typing.v` line 3554
-- Configuration typing: `HasTypeConfig, file `typing.v` line 3563
+- Value typing: `HasTypeValue`, file `typing.v` line 1522
+- Instruction typing: `HasTypeInstruction`, file `typing.v` line 1880
+- Store typing: `HasTypeStore`, file `typing.v` line 3738
+- Configuration typing: `HasTypeConfig`, file `typing.v` line 3747
 
-- Top-level progress theorem: `Progress`, file `progress.v` line 2598
-- Top-level preservation theorem: `Preservation`, file `safety.v` line 2674
+<!--- useless Markdown comment to separate the lists --->
+- Top-level progress theorem: `Progress`, file `progress.v` line 2618
+- Top-level preservation theorem: `Preservation`, file `safety.v` line 2800
 
-We also prove a top-level soundness theorem (not shown in the paper): `Soundness`, file `safety.v` line 2796 
+We also prove a top-level soundness theorem (not shown in the paper): `Soundness`, file `safety.v` line 2928
 
-### Remaining Admits
+### Note about Paper
 
-At the time of submitting this artifact, there is one remaining admit in the file `hti_subst_indices.v`, named `HasTypeInstruction_subst_index`.
+In the RichWasm paper, it says
 
-It says that for well-typed instructions `S; M; F; L |- es : tau_1* -> tau_2* | L'` and a concrete instantiation `I` of a kind variable `rho` where `I` satisfies the constraints of `rho`, the typing judgement still holds after substituting `rho` with `I`, that is,
+ > It contains one remaining admitted lemma related to substitution (among many others that we have fully proved).
+
+At the time of submitting this artifact for the RichWasm paper, there was an admitted lemma in the file `hti_subst_indices.v`, named `HasTypeInstruction_subst_index`. However, this lemma has now been proven, so there are no longer any remaining admits in this artifact.
+
+For those curious, the `HasTypeInstruction_subst_index` lemma says that for well-typed instructions `S; M; F; L |- es : tau_1* -> tau_2* | L'` and a concrete instantiation `I` of a kind variable `rho` where `I` satisfies the constraints of `rho`, the typing judgement still holds after substituting `rho` with `I`, that is,
 ```
 S; M; F[I/rho]; L[I/rho] |- es[I/rho] : tau_1[I/rho]* -> tau_2[I/rho]* | L'[I/rho].
 ```
 
-We are confident that we will prove this shortly after the deadline. Note that most of the substitution lemmas we need have already been proved in `misc_util.v`
+Note that, between submitting the artifact and proving this lemma, we added an extra assumption to `QualifyTyp`: `forall n, p <> TVar n`. This states the pretype in the input to `QualifyTyp` must not be a type variable. This restriction is necessary because type variables can become capabilities or references after substitution.
 
 
 ## Compilers 

@@ -11,8 +11,6 @@ Require Import RWasm.term RWasm.memory RWasm.reduction RWasm.typing RWasm.map_ut
         RWasm.typing_util RWasm.tactics RWasm.list_util RWasm.EnsembleUtil
         RWasm.splitting RWasm.surface RWasm.typing RWasm.hti_subst_indices RWasm.progress RWasm.preservation RWasm.misc_util.
 
-Theorem sub_0_r: forall n, n - 0 = n. Proof. lia. Qed.
-
 Ltac some := right; intro; inversion H.
 
 Lemma eq_dec_N : forall (a b : N), (a = b) \/ (a <> b).
@@ -131,42 +129,6 @@ Proof.
                 inversion H; subst; simpl in *; clear H
               end.
        auto.
-Qed.
-
-Lemma forall3_nth_error_args3 : forall {A B C P l1 l2 l3 j v3},
-    Forall3 P l1 l2 l3 ->
-    @nth_error C l3 j = Some v3 ->
-    exists v1 v2,
-      @nth_error A l1 j = Some v1 /\
-      @nth_error B l2 j = Some v2 /\
-      P v1 v2 v3.
-Proof.
-  intros.
-  match goal with
-  | [ H : Forall3 _ _ _ _ |- _ ] => rewrite Forall3_forall in H
-  end.
-  destructAll.
-  match goal with
-  | [ H : length ?A = length ?B,
-      H' : nth_error ?B ?IDX = Some _ |- _ ] =>
-    let H0 := fresh "H" in
-    assert (H0 : exists y, nth_error A IDX = Some y);
-    [ apply nth_error_some_exists; rewrite H | ]
-  end.
-  { eapply nth_error_Some_length; eauto. }
-  destructAll.
-  match goal with
-  | [ H : length ?A = length ?B,
-      H' : nth_error ?B ?IDX = Some _,
-      H'' : length ?B = length ?C,
-      H''' : nth_error ?C ?IDX = Some _ |- _ ] =>
-    let H0 := fresh "H" in
-    assert (H0 : exists y, nth_error A IDX = Some y);
-    [ apply nth_error_some_exists; rewrite H | ]
-  end.
-  { eapply nth_error_Some_length; eauto. }
-  destructAll.
-  do 2 eexists; eauto.
 Qed.
 
 Lemma forall3_nth_error_args23 : forall {A B C P l1 l2 l3 j v2 v3},
@@ -570,7 +532,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       set_nth l1 idx v ++ l2 = set_nth (l1 ++ l2) idx v.
     Proof.
       intros A l1. induction l1; intros; destruct idx; inversion H; subst;
-        simpl in *; eauto; f_equal; rewrite sub_0_r; eauto.
+        simpl in *; eauto; f_equal; rewrite Nat.sub_0_r; eauto.
       rewrite IHl1. auto. lia. rewrite IHl1. auto. lia.
     Qed.
 
@@ -579,7 +541,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       set_nth (l1 ++ l2) (length l1 + idx) el.
     Proof.
       intros A l1. induction l1; intros; simpl; auto.
-      f_equal. simpl. rewrite IHl1. rewrite sub_0_r. auto.
+      f_equal. simpl. rewrite IHl1. rewrite Nat.sub_0_r. auto.
     Qed.
 
   Lemma forallb_set_nth : forall {A} {l : list A} {f} {idx} {el},
@@ -600,7 +562,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       intros A B l1.
       induction l1; intros; auto; simpl; destruct idx; destruct l2; simpl; auto; inversion H;
         subst;  f_equal; auto.
-      rewrite sub_0_r. eauto.
+      rewrite Nat.sub_0_r. eauto.
    Qed.
 
   Lemma set_nth_In : forall {A} {l : list A} {el} {idx},
@@ -609,7 +571,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
     Proof.
       intros A l.
       induction l; intros; destruct idx; inversion H; subst; simpl in *; eauto;
-        right; auto; rewrite sub_0_r; apply IHl; lia.
+        right; auto; rewrite Nat.sub_0_r; apply IHl; lia.
     Qed.
 
   Lemma set_nth_nth_error : forall {A} l idx (o : A),
@@ -681,36 +643,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
     induction l1; intros; inversion H; subst; auto.
     destruct idx; simpl; apply Forall3_cons; auto.
   Qed.
-
-  Lemma ReplaceAtIdx_nth_error : forall {A} idx (lold : list A) tnew lnew told,
-      ReplaceAtIdx idx lold tnew = Some (lnew, told) ->
-      lnew = set_nth lold idx tnew.
-  Proof.
-    induction idx; intros.
-    - destruct lold. discriminate H.
-      injection H as h. subst. auto.
-    - destruct lold. discriminate H.
-      simpl in H. rewrite Nat.sub_0_r in H.
-      destruct (ReplaceAtIdx idx lold tnew) eqn:Eq.
-      + simpl. rewrite Nat.sub_0_r. destruct p.
-        injection H as h. subst. f_equal. eapply IHidx. eauto.
-      + discriminate H.
-  Qed.
-
-  Lemma ReplaceAtIdx_old_nth_error : forall {A} {idx : nat} {lold : list A} {tnew : A} {lnew : list A} {told : A},
-        ReplaceAtIdx idx lold tnew = Some (lnew, told) ->
-        nth_error lold idx = Some told.
-    Proof.
-      intros A idx lold.
-      revert idx. induction lold; intros; simpl in *; destruct idx; inversion H; subst;
-        simpl in *; auto.
-      rewrite sub_0_r in *.
-
-      destruct (ReplaceAtIdx idx lold tnew) eqn:Eq.
-      - destruct p. injection H as h. subst.
-        eapply IHlold. eauto.
-      - inversion H.
-    Qed.
   
   Lemma ReplaceAtIdx_no_change : forall {A l1 l2 i e},
       @ReplaceAtIdx A i l1 e = Some (l2, e) ->
@@ -1247,49 +1179,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
            apply Forall_cons; auto.
            eapply IHlold; eauto.
         ++ discriminate H0.
-  Qed.
-
-  Lemma Forall_combine_nth_error : forall {A B} idx l1 l2 v2 (P : (A * B) -> Prop),
-        length l1 = length l2 ->
-        Forall P (combine l1 l2) ->
-        nth_error l2 idx = Some v2 ->
-        exists v1, P (v1, v2).
-  Proof.
-    induction idx.
-    - intros l1 l2.
-      case l1; case l2; intros.
-      all: simpl in *.
-      1-3:
-        match goal with
-        | [ H : None = Some _ |- _ ] => inversion H
-        | [ H : 0 = Datatypes.S _ |- _ ] => inversion H
-        | [ H : Datatypes.S _ = 0 |- _ ] => inversion H
-        end.
-      match goal with
-      | [ H : Some _ = Some _ |- _ ] =>
-        inversion H; subst; simpl in *
-      end.
-      match goal with
-      | [ H : Forall _ _ |- _ ] => inversion H; subst; simpl in *
-      end.
-      eexists; eauto.
-    - intros l1 l2.
-      case l1; case l2; intros.
-      all: simpl in *.
-      1-3:
-        match goal with
-        | [ H : None = Some _ |- _ ] => inversion H
-        | [ H : 0 = Datatypes.S _ |- _ ] => inversion H
-        | [ H : Datatypes.S _ = 0 |- _ ] => inversion H
-        end.
-      match goal with
-      | [ H : Datatypes.S _ = Datatypes.S _ |- _ ] =>
-        inversion H; subst; simpl in *
-      end.
-      match goal with
-      | [ H : Forall _ _ |- _ ] => inversion H; subst; simpl in *
-      end.
-      eauto.
   Qed.
 
   Theorem Same_set_Union_compat_r:  forall {A : Type} (s1 s1' s2 : Ensembles.Ensemble A),
@@ -2332,101 +2221,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       eapply IHl; eauto.
   Qed.
 
-  Lemma in_tpl : forall {A B} {l : list (A * B)} {l1 l2 x1 x2},
-      In (x1, x2) l ->
-      split l = (l1, l2) ->
-      exists idx,
-        nth_error l1 idx = Some x1 /\
-        nth_error l2 idx = Some x2.
-  Proof.
-    induction l; intros;
-      match goal with
-      | [ H : In _ _ |- _ ] => inversion H; subst; simpl in *
-      end;
-      repeat match goal with
-             | [ H : context[split ?L] |- _ ] => revert H
-             end;
-      match goal with
-      | [ |- context[split ?L] ] =>
-        remember (split L) as tpl;
-        generalize (eq_sym Heqtpl); case tpl
-      end;
-      intros;
-      repeat match goal with
-             | [ X : _ * _ |- _ ] => destruct X; simpl in *
-             end;
-      match goal with
-      | [ H : (_, _) = (_, _) |- _ ] =>
-        inversion H; subst; simpl in *
-      end.
-    - exists 0; simpl in *; auto.
-    - match goal with
-      | [ H : In (?X1, ?X2) _,
-          H' : context[(?L1, ?L2) = (_, _) -> _] |- _ ] =>
-        specialize (H' L1 L2 X1 X2 H eq_refl)
-      end.
-      destructAll.
-      match goal with
-      | [ H : nth_error _ ?IDX = Some _ |- _ ] =>
-        exists (Datatypes.S IDX)
-      end.
-      simpl; auto.
-  Qed.
-
-  Lemma TypeValid_QualValid : forall {F pt q},
-      TypeValid F (QualT pt q) ->
-      QualValid (qual F) q.
-  Proof.
-    intros.
-    inversion H; auto.
-  Qed.
-   
-  Lemma HasHeapType_HeapTypeValid S F hv x :
-    HasHeapType S F hv x ->
-    HeapTypeValid F x.
-  Proof.
-    intros.
-    inversion H; subst; simpl in *.
-    - apply VariantValid. auto.
-    - constructor.
-      destructAll.
-      rewrite Forall_forall.
-      intros.
-      match goal with
-      | [ X : _ * _ |- _ ] =>
-        destruct X
-      end.
-      match goal with
-      | [ H : In (_, _) _, H' : (_, _) = split _ |- _ ] =>
-        specialize (in_tpl H (eq_sym H'))
-      end.
-      intros; destructAll.
-      
-      match goal with
-      | [ H : Forall2 _ ?L1 ?L2,
-          H' : nth_error ?L1 _ = Some _,
-          H'' : nth_error ?L2 _ = Some _ |- _ ] =>
-        specialize (forall2_nth_error _ _ _ _ _ _ H H' H'')
-      end.
-      simpl; intros; destructAll.
-      eexists; split; eauto; split; [ | split; eauto ].
-      -- match goal with
-         | [ H : Forall _ _ |- _ ] =>
-           rewrite Forall_forall in H; apply H
-         end.
-         eapply nth_error_In; eauto.
-      -- match goal with
-         | [ H : Forall3 _ _ _ ?L3,
-             H' : nth_error ?L3 _ = Some _ |- _ ] =>
-           specialize (forall3_nth_error_args3 H H')
-         end.
-         intros; destructAll.
-         eapply HasType_Valid; eauto.
-    - constructor; auto.
-    - constructor; auto.
-      eapply TypeValid_QualValid; eauto.
-  Qed.
-
   Lemma HasHeapType_Function_Ctx : forall {S F F' hv ht},
     qual F = qual F' ->
     size F = size F' ->
@@ -2497,6 +2291,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                | [ H : _ = ?A |- context[?A] ] => rewrite <-H
                end.
       1-4: eauto.
+      -- unfold heapable in *.
+         match goal with
+         | [ H : ?A = ?B |- context[?B] ] =>
+             rewrite <-H; auto
+         end.
       -- eapply TypeValid_Function_Ctx; eauto.
       -- eapply TypeValid_Function_Ctx; eauto.
          all: destruct F; subst; simpl in *.
@@ -2504,7 +2303,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
          all: auto.
       -- simpl.
          eapply HasTypeValue_Function_Ctx; eauto.
-  Qed.   
+  Qed.
     
   Lemma HasHeapType_empty_function_ctx_rev : forall {S1 F hv ht},
       HasHeapType S1 F hv ht ->
@@ -2555,6 +2354,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       match goal with
       | [ T : Typ |- _ ] => destruct T
       end.
+      destructAll.
       eapply HasTypeValue_Unrestricted_LinEmpty; eauto.
     - eapply SplitStoreTypings_Empty'; eauto.
       eapply Forall3_HasTypeValue_Unrestricted_LinEmpty; eauto.
@@ -2580,6 +2380,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       match goal with
       | [ T : Typ |- _ ] => destruct T
       end.
+      destructAll.
       auto.
     - eapply SplitStoreTypings_Empty'; eauto.
       rewrite Forall_forall.
@@ -2608,6 +2409,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
         specialize (forall2_nth_error _ _ _ _ _ _ H H' H'')
       end.
       intros; simpl in *.
+      destructAll.
       eapply HasTypeValue_Unrestricted_LinEmpty; eauto.
     - match goal with
       | [ H : HasTypeValue _ _ _ (_ _ (subst.subst'_qual _ ?Q))
@@ -2626,6 +2428,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       all: simpl in *.
       all: unfold debruijn.var in *.
       all: simpl in *.
+      all: destructAll.
       all: eapply HasTypeValue_Unrestricted_LinEmpty; eauto.
   Qed.
 
@@ -2753,7 +2556,25 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       intros. induction H; subst; econstructor; inversion H0;
         try rewrite H1 in *; simpl in *; auto.
       rewrite H2 in *. auto. rewrite H2 in *. auto.
+      all: destruct C; simpl in *; subst; auto.
    Qed.
+
+  Lemma HeapTypeValid_Function_Ctx : forall {F F' ht},
+      HeapTypeValid F ht ->
+      qual F = qual F' ->
+      size F = size F' ->
+      location F = location F' ->
+      type F = type F' ->
+      HeapTypeValid F' ht.
+  Proof.
+    specialize TypesValid_rel_fields.
+    intros.
+    destructAll.
+    match goal with
+    | [ H : context[_ -> HeapTypeValid _ _] |- _ ] =>
+        eapply H; eauto
+    end.
+  Qed.
 
   Lemma HeapTypeValid_update_linear_ctx_rev : forall {F L ht},
       HeapTypeValid (update_linear_ctx L F) ht ->
@@ -2802,7 +2623,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
         destruct H2. split; auto.
         destruct H3. split; auto.
         destruct H4. split; auto.
-        eapply H. eauto.
+        destructAll.
+        split; auto.
+        eapply TypeValid_Function_Ctx; eauto.
       - eapply IHht. simpl. eauto.
   Qed.
 
@@ -2843,6 +2666,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                v t)
         ts vs Ss ->
       LocalCtxValid F L ->
+      QualValid (qual F) (get_hd (linear F)) ->
       HasTypeInstruction
         S C F L vs (Arrow [] ts) L.
   Proof.
@@ -2913,7 +2737,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       eapply ConsTyp; eauto.
       -- match goal with
          | [ H : forall _ _ _ _ _ _ _ _, _ |- _ ] =>
-           eapply H; [ | eauto | eauto | eauto ]
+           eapply H; [ | eauto | eauto | eauto | eauto ]
          end.
          match goal with
          | [ H : Datatypes.S _ = Datatypes.S _ |- _ ] =>
@@ -2924,7 +2748,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
          | [ |- context[Arrow ?T _] ] =>
            replace T with (T ++ []) at 1 by apply app_nil_r
          end.
-         eapply FrameTyp; eauto.
+         eapply FrameTyp.
+         1: eauto.
+         all: auto.
          --- rewrite Forall_forall.
              intros.
              match goal with
@@ -2936,6 +2762,10 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              ---- apply HasTypeValue_update_linear_ctx.
                   eapply HasTypeValue_update_linear_ctx_rev; eauto.
              ---- destruct F; subst; simpl in *; solve_lcvs.
+             ---- destruct F; simpl.
+                  econstructor; eauto.
+                  rewrite get_set_hd; auto.
+         --- econstructor; eauto.
          --- rewrite Forall_forall.
              intros.
              match goal with
@@ -2987,6 +2817,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              v t)
       ts vs Ss ->
     LocalCtxValid F L ->
+    QualValid (qual F) (get_hd (linear F)) ->
     HasTypeInstruction
       S C F L vs (Arrow [] ts) L.
   Proof.
@@ -2996,7 +2827,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
 
   Ltac use_HasTypeValues_imp_HasTypeInstruction F :=
     eapply HasTypeValues_imp_HasTypeInstruction;
-    [ eauto | | destruct F; subst; simpl in *; solve_lcvs ];
+    [ eauto | | destruct F; subst; simpl in *; eapply LocalCtxValid_Function_Ctx; try eapply HasTypeInstruction_FirstLocalValid; eauto | destruct F; simpl in *; rewrite get_set_hd; econstructor; eauto ];
     rewrite Forall3_forall;
     split; [ | eapply Forall3_length; eauto ];
     intros;
@@ -3038,6 +2869,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       ts2 = ts ++ ts2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F' := update_linear_ctx (set_hd qf (linear F)) F in
       HasTypeInstruction S1 M F' L1 es (Arrow ts1' ts3) L3 /\
       HasTypeInstruction S2 M F' L3 [e] (Arrow ts3 ts2') L2 /\
@@ -3050,7 +2883,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
     | [ H : ?A -> _, H' : ?A |- _ ] => specialize (H H')
     end.
     destructAll.
-    do 8 eexists; eauto.
+    simpl in *; destructAll.
+    do 8 eexists.
+    repeat ltac:(split; eauto).
   Qed.
 
   Lemma SplitStoreTypings_EmptyStoreTyping : forall {Ss IT S},
@@ -4193,14 +4028,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
          constructor.
          eapply Pretype_subst_loc_eq_without_loc; eauto.
     - econstructor; eauto.
-      eapply TypeValid_Function_Ctx; eauto.
-      all:
-        match goal with
-        | [ H : Function_Ctx_empty ?F |- _ ] =>
-          destruct F; subst; simpl in *;
-          unfold Function_Ctx_empty in H; destructAll;
-          simpl in *; subst; simpl in *; auto
-        end.
   Qed.
 
   Lemma Typ_eq_without_loc_refl : forall {F typ},
@@ -4950,16 +4777,22 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
           | [ H : _ < 0 |- _ ] => inversion H
           end.
       + econstructor.
-        eapply sizeOfPretype_empty_ctx. eauto.
-        eapply SizeLeq_empty_ctx. eauto.
+        * eapply sizeOfPretype_empty_ctx. eauto.
+        * eapply SizeValid_empty_ctx. eauto.
+        * eapply SizeValid_empty_ctx. eauto.
+        * eapply SizeLeq_empty_ctx. eauto.
         * apply TypeValid_empty_ctx; auto.
         * intro. eapply NoCapsPretype_empty_ctx. eauto.
       + econstructor.
-        all: try ltac:(eapply Forall_Forall; eauto; intros; apply QualLeq_empty_ctx; auto).
-        apply QualValid_empty_ctx; auto.
+        1:{ eapply QualValid_empty_ctx; auto. }
+        all: prepare_Forall.
+        all: destructAll.
+        all: split; [ apply QualValid_empty_ctx | apply QualLeq_empty_ctx ]; auto.
       + econstructor.
-        all: try ltac:(eapply Forall_Forall; eauto; intros; apply SizeLeq_empty_ctx; auto).
-        apply SizeValid_empty_imp_all_SizeValid; auto.
+        1:{ eapply SizeValid_empty_ctx. eauto. }
+        all: prepare_Forall.
+        all: destructAll.
+        all: split; [ apply SizeValid_empty_ctx | apply SizeLeq_empty_ctx ]; auto.
     - eauto.
     - eapply IHis. eauto.
   Qed.
@@ -5003,6 +4836,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
   Lemma HasTypeInstruction_debruijn_subst S C F L es taus1 tau taus2 L' sz q pt sz' :
     sizeOfPretype (type F) pt = Some sz' ->
     SizeLeq (size F) sz' sz = Some true ->
+    SizeValid (size F) sz' ->
     SizeValid (size F) sz ->
     NoCapsPretype (heapable F) pt = true ->
     TypeValid F (QualT pt q) ->
@@ -5666,6 +5500,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
         (fun tau sz =>
            exists sztau,
              sizeOfType [] tau = Some sztau /\
+             SizeValid [] sztau /\
              SizeLeq [] sztau sz = Some true)
         taus
         szs ->
@@ -5680,6 +5515,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       Function_Ctx_empty F ->
       nth_error szs idx = Some oldtausz ->
       sizeOfType (type F) newtau = Some newtausz ->
+      SizeValid (size F) newtausz ->
       SizeLeq (size F) newtausz oldtausz = Some true ->
       HasHeapType
         Snew
@@ -5762,6 +5598,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
         (fun tau sz =>
            exists sztau,
              sizeOfType [] tau = Some sztau /\
+             SizeValid [] sztau /\
              SizeLeq [] sztau sz = Some true)
         taus
         szs ->
@@ -5781,6 +5618,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       TypeValid F newtau ->
       NoCapsTyp (heapable F) newtau = true ->
       sizeOfType (type F) newtau = Some newtausz ->
+      SizeValid (size F) newtausz ->
       SizeLeq (size F) newtausz oldtausz = Some true ->
       (forall '(loc, hv, len),
           In (loc, hv, len)
@@ -6015,7 +5853,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
            intros; destructAll; subst.
            eexists; eauto.
            split; [ eauto | ].
-           split; [ | split; [ | eauto ] ].
+           repeat split; eauto.
            ---- match goal with
                 | [ H : nth_error _ _ = Some ?T |- context[?T] ] =>
                   apply nth_error_In in H
@@ -6905,6 +6743,52 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
     simpl in *; auto.
   Qed.
 
+  Lemma TypeValid_weak_pretype : forall {F t F' t' sz q hc},
+      TypeValid F t ->
+      F' = add_constraint F (TYPE sz q hc) ->
+      t' = subst.subst'_type (debruijn.subst'_of (debruijn.weak subst.SPretype)) t ->
+      TypeValid F' t'.
+  Proof.
+    intros.
+    specialize TypeValid_add_constraint_pretype.
+    intro H'.
+    destruct H' as [H' _].
+    subst.
+    match goal with
+    | [ |- context[add_constraint ?F ?KV] ] =>
+        replace (add_constraint F KV) with (add_constraints F [KV]) by auto
+    end.
+    eapply H'; eauto.
+    simpl.
+    apply single_weak_debruijn_weak_conds.
+  Qed.
+
+  Lemma LocalCtxValid_weak_pretype : forall {L F F' sz q hc},
+      LocalCtxValid F L ->
+      F' = add_constraint F (TYPE sz q hc) ->
+      LocalCtxValid
+        F'
+        (subst'_local_ctx (debruijn.subst'_of (debruijn.weak subst.SPretype)) L).
+  Proof.
+    induction L.
+    1:{ constructor. }
+    intros.
+    unfold LocalCtxValid in *.
+    match goal with
+    | [ H : Forall _ _ |- _ ] => inv H
+    end.
+    destruct_prs.
+    destructAll.
+    constructor.
+    - split.
+      -- eapply TypeValid_weak_pretype; eauto.
+      -- rewrite pretype_weak_no_effect_on_size.
+         destruct F; simpl.
+         rewrite sizepairs_debruijn_weak_pretype.
+         auto.
+    - eapply IHL; eauto.
+  Qed.
+
   Lemma Preservation_reduce_full Sh Sp Sstack S_ignore Ss M F L L' arrt addr s vs szs es s' vs' es' :
     Function_Ctx_empty F ->
     HasTypeStore s Sh Sp ->
@@ -6922,7 +6806,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
       ((map_util.sub_map (UnrTyp Sp) (UnrTyp Sp')) /\ InstTyp Sp = InstTyp Sp') /\
       LCSizeEqual [] L L''.
   Proof.
-    intros Hempty Hst Hmod Hsplit Hi Hl Hred. destruct arrt. inv Hred.
+    intros Hempty Hst Hmod Hsplit Hi Hl Hred.
+    specialize (HasTypeInstruction_QualValid Hi).
+    intros.
+    destruct arrt.
+    inv Hred.
     
     - (* Get_local Unr *)
       show_tlvs Hi.
@@ -6951,13 +6839,13 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              apply QualLeq_Top.
          --- apply QualLeq_Top.
          --- eapply ChangeEndLocalTyp.
+             { destruct F; subst; simpl in *.
+               eapply LocalCtxValid_Function_Ctx; eauto. }
              { destruct F; subst; simpl in *; eauto. }
              apply ValTyp.
              2:{
-               eapply LocalCtxValid_LCEffEqual.
-               2:{ apply LCEffEqual_sym; eauto. }
-               destruct F; subst; simpl in *.
                eapply LocalCtxValid_Function_Ctx; eauto.
+               all: destruct F; auto.
              }
              match goal with
              | [ H : HasTypeLocals _ _ _ _ |- _ ] =>
@@ -7003,6 +6891,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              ---- destructAll; auto.
              ---- apply eq_map_empty.
                   all: auto.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd.
+                  econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- match goal with
          | [ |- context[set_localtype ?IDX ?T ?SZ ?L] ] =>
@@ -7100,15 +6993,20 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              apply QualLeq_Top.
          --- apply QualLeq_Top.
          --- eapply ChangeBegLocalTyp.
+             { eapply LocalCtxValid_Function_Ctx; eauto.
+               all: destruct F; auto. }
              { apply LCEffEqual_sym.
                destruct F; subst; simpl in *; eauto. }
              apply ValTyp.
-             2:{
-               destruct F; subst; simpl in *.
-               eapply LocalCtxValid_Function_Ctx; eauto.
-             }
-             apply HasTypeValue_update_linear_ctx.
-             auto.
+             ---- apply HasTypeValue_update_linear_ctx.
+                  auto.
+             ---- destruct F; subst; simpl in *.
+                  eapply LocalCtxValid_Function_Ctx; eauto.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd; auto.
+                  econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- match goal with
          | [ H : HasTypeValue _ _ ?V ?T |- _ ] =>
@@ -7202,11 +7100,18 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              apply QualLeq_Top.
          --- apply QualLeq_Top.
          --- eapply ChangeEndLocalTyp.
+             { destruct F; subst; simpl in *.
+               eapply LocalCtxValid_Function_Ctx; eauto. }
              { destruct F; subst; simpl in *; eauto. }
-             apply EmptyTyp; [ eauto | ].
-             eapply LocalCtxValid_LCEffEqual; [ | apply LCEffEqual_sym; eauto ].
-             destruct F; subst; simpl in *.
-             eapply LocalCtxValid_Function_Ctx; eauto.
+             apply EmptyTyp; [ eauto | | | ].
+             ---- destruct F; subst; simpl in *.
+                  eapply LocalCtxValid_Function_Ctx; eauto.
+             ---- constructor.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd.
+                  econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- eapply HasTypeLocals_replacement; eauto.
          eapply LCEffEqual_HasTypeLocals; eauto.
@@ -7241,6 +7146,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
         * apply ValTyp.
           2:{ destruct F; subst; simpl in *; solve_lcvs. }
           apply HasTypeValue_Function_Ctx with (F := F); try (destruct F; reflexivity).
+          2:{
+            destruct F; simpl.
+            rewrite get_set_hd.
+            econstructor; eauto.
+          }
           
           inv Hst.
           use_forall2_nth_error.
@@ -7272,6 +7182,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
           simpl.
           eapply eq_map_empty.
           eapply M.is_empty_1. eapply map_util.M.empty_1. eassumption.
+        * auto.
+        * econstructor; eauto.
         * solve_tvs.
       + eapply LCEffEqual_HasTypeLocals; eauto.
       + assumption.
@@ -7433,8 +7345,14 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              intro typ; destruct typ.
              apply QualLeq_Top.
          --- apply QualLeq_Top.
-         --- apply EmptyTyp; [ eauto | ].
-             destruct F; subst; simpl in *; solve_lcvs.
+         --- apply EmptyTyp; [ eauto | | | ].
+             ---- destruct F; subst; simpl in *; solve_lcvs.
+             ---- constructor.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd.
+                  econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
@@ -7491,7 +7409,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                inversion H
              end.
              subst.
-             eapply CallAdmTyp; [ | eassumption | | | | ].
+             eapply CallAdmTyp; [ | eassumption | | | | | ].
              ---- match goal with
                   | [ H : SplitStoreTypings _ Sstack |- _ ] =>
                     inversion H
@@ -7559,6 +7477,10 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              ---- destruct F; subst; simpl in *; solve_lcvs.
              ---- destruct F; subst; simpl in *; solve_tvs.
              ---- destruct F; subst; simpl in *; solve_tvs.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd; econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
@@ -7586,7 +7508,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              destruct t.
              apply QualLeq_Top.
          --- apply QualLeq_Top.
-         --- eapply CallAdmTyp; [ | eassumption | | | | ].
+         --- eapply CallAdmTyp; [ | eassumption | | | | | ].
              ---- inversion Hst.
                   subst.
 
@@ -7642,6 +7564,10 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
             ---- destruct F; subst; simpl in *; solve_lcvs.
             ---- destruct F; subst; simpl in *; solve_tvs.
             ---- destruct F; subst; simpl in *; solve_tvs.
+            ---- destruct F; simpl.
+                 rewrite get_set_hd; econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
@@ -7682,9 +7608,39 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   assumption.
              ---- eapply StructUnrestricted.
                   destruct F; simpl in *.
-                  auto.
+                  match goal with
+                  | [ H : Forall _ (_ ++ [_]) |- _ ] =>
+                      apply Forall_app in H
+                  end.
+                  destructAll.
+                  match goal with
+                  | [ H : Forall _ [_] |- _ ] => inv H
+                  end.
+                  match goal with
+                  | [ H : TypeValid _ (QualT (RefT _ _ _) _) |- _ ] =>
+                      inv H
+                  end.
+                  match goal with
+                  | [ H : HeapTypeValid _ (StructType _) |- _ ] =>
+                      inv H
+                  end.
+                  prepare_Forall.
+                  destruct_prs.
+                  destyp.
+                  split; auto.
+                  destructAll.
+                  simpl in *.
+                  match goal with
+                  | [ H : TypeValid _ (QualT _ ?Q) |- QualValid _ ?Q ] =>
+                      inv H; auto
+                  end.
              ---- destruct F; subst; simpl in *; solve_lcvs.
              ---- destruct F; subst; simpl in *; solve_tvs.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd.
+                  econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
@@ -7746,12 +7702,13 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   ----- apply HasTypeValue_update_linear_ctx.
                         eassumption.
                   ----- destruct F; subst; simpl in *; solve_lcvs.
+                  ----- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
              ---- match goal with
                   | [ |- context[Arrow (?A :: ?B) (?A :: ?C)] ] =>
                     replace (A :: B) with ([A] ++ B) by ltac:(simpl; congruence);
                     replace (A :: C) with ([A] ++ C) by ltac:(simpl; congruence)
                   end.
-                  eapply FrameTyp; [ reflexivity | | | | ].
+                  eapply FrameTyp; [ reflexivity | | | | | | ].
                   ----- apply Forall_trivial.
                         intro t.
                         destruct t.
@@ -7760,7 +7717,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   ----- apply ValTyp.
                         apply HasTypeValue_update_linear_ctx.
                         apply HasTypeValue_update_linear_ctx.
-                        unfold get_mem in H.
+                        unfold get_mem in *.
                         match goal with
                         | [ H : HasTypeValue _ _ _ _ |- _ ] =>
                           inversion H; subst
@@ -8203,7 +8160,16 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                         --------- apply QualLeq_Refl.
                                         --------- simpl; auto.
                         ------ destruct F; subst; simpl in *; solve_lcvs.
+                        ------ destruct F; simpl.
+                               rewrite set_set_hd, get_set_hd.
+                               econstructor; eauto.
+                  ----- destruct F; simpl.
+                        rewrite get_set_hd.
+                        econstructor; eauto.
+                  ----- econstructor; eauto.
                   ----- destruct F; subst; simpl in *; solve_tvs.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
@@ -8362,7 +8328,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                    |- context[?Q] ] =>
                  inversion H; subst; simpl in *
                end.
-               auto.
+               unfold Function_Ctx_empty in *.
+               destructAll; destruct F; simpl in *; subst; auto.
             -- destruct F; subst; simpl in *.
                unfold Function_Ctx_empty in *.
                simpl in *; destructAll; auto.
@@ -8452,23 +8419,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                match goal with
                | [ H : HasTypeValue _ _ (Ref (LocP _ Unrestricted)) _ |- _ ] => inversion H; subst; simpl in *
                end.
-               match goal with
-               | [ H : QualLeq ?Q1 ?A (QualConst Unrestricted) = Some true,
-                   H' : QualLeq ?Q2 (QualConst Linear) ?A = Some true |- _ ] =>
-                 let H'' := fresh "H" in
-                 assert (H'' : Q1 = Q2);
-                 [ match goal with
-                   | [ |- context[linear ?T] ] => destruct T
-                   end;
-                   simpl in *; auto
-                 | rewrite H'' in H;
-                   specialize (QualLeq_Trans _ _ _ _ H' H) ]
-               end.
-               intros.
-               exfalso; eapply QualLeq_Const_False; eauto.
-               destruct F; subst; simpl in *.
                unfold Function_Ctx_empty in *.
-               simpl in *; destructAll; auto.
+               destructAll.
+               destruct F; simpl in *; subst; auto.
+               exfalso; eapply QualLeq_Const_False; eauto.
+               eapply QualLeq_Trans; eauto.
              }
              intros; subst.
              assert (Hlin_eq1 : eq_map (LinTyp Sh) (LinTyp Sh')).
@@ -8491,9 +8446,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                      inversion H; subst; simpl in *
                    end.
                    eapply HasTypeValue_Unrestricted_LinEmpty; eauto.
-                   destruct F; subst; simpl in *.
-                   unfold Function_Ctx_empty in *.
-                   simpl in *; destructAll; auto.
+                   all: destruct F.
+                   all: unfold Function_Ctx_empty in *.
+                   all: destructAll; simpl in *; subst; auto.
                  - eapply SplitStoreTypings_Empty'; [ eauto | ].
                    constructor; [ | constructor; auto ].
                    eapply HasTypeValue_Unrestricted_LinEmpty; eauto.
@@ -9381,15 +9336,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                    destructAll.
                    eapply StructLinear_WellTyped.
                    1,3-13,15-20,23: eauto.
-                   -- apply eq_sym; eauto.
-                   -- destruct F; subst; simpl in *.
-                      unfold Function_Ctx_empty in *.
-                      simpl in *.
-                      destructAll.
-                      auto.
-                   -- let x := fresh "x" in
-                      intro x; destruct x as [[curL curHV] curSz].
-                      auto.
                    -- match goal with
                       | [ H' : SplitStoreTypings (?S :: ?S1 ++ ?S2) ?SP |- context[?SP] ] =>
                         eapply (SplitStoreTypings_get_heaptype_LinTyp (S1:=S)); [ | | exact H' ]; [ | constructor; auto ]
@@ -9397,6 +9343,17 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                       simpl.
                       unfold get_heaptype.
                       rewrite M.gss; auto.
+                   -- apply eq_sym; eauto.
+                   -- destruct F; subst; simpl in *.
+                      unfold Function_Ctx_empty in *.
+                      simpl in *.
+                      destructAll.
+                      auto.
+                   -- eauto.
+                   -- let x := fresh "x" in
+                      intro x; destruct x as [[curL curHV] curSz].
+                      auto.
+                   -- eauto.
                  - rewrite forall2_map.
                    intros.
                    match goal with
@@ -9968,9 +9925,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                           inversion H; subst
                         end.
                         constructor; destruct F; simpl in *; subst; eauto.
-                        replace_heaptypevalid_parts label ret size type location.
-                        apply HeapTypeValid_linear.
-                        auto.
              ---- simpl in *; subst.
                   constructor.
                   ----- simpl.
@@ -9981,8 +9935,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                           inversion H; subst
                         end.
                         constructor; destruct F; simpl in *; subst; eauto.
-                        replace_heaptypevalid_parts label ret size type location.
-                        apply HeapTypeValid_linear.
                         constructor.
                         simpl in *.
 
@@ -9999,7 +9951,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                 | [ H : sizeOfType _ _ = Some ?SZ |- _ ] => exists SZ
                                 end.
                                 simpl in *.
-                                split; [ eauto | ].
+                                split.
+                                { unfold Function_Ctx_empty in *.
+                                  destructAll; simpl in *; subst; auto. }
                                 match goal with
                                 | [ H : HeapTypeValid _ _ |- _ ] =>
                                   inversion H
@@ -10015,11 +9969,16 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                 intro Hold.
                                 destructAll; simpl in *.
                                 split; [ eauto | ].
-                                split; eauto.
-                                replace_typevalid_parts label ret size type location.
-                                apply TypeValid_linear.
-                                eauto.
+                                repeat split; eauto.
+                                2: eapply TypeValid_Function_Ctx; eauto.
+                                all: unfold Function_Ctx_empty in *.
+                                all: destructAll; simpl in *; subst; auto. 
              ---- destruct F; subst; simpl in *; solve_lcvs.
+             ---- destruct F; simpl.
+                  rewrite get_set_hd.
+                  econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- destruct F; subst; simpl in *; solve_tvs.
       -- do 3 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- rewrite (eq_sym Hinst); eauto.
@@ -10401,7 +10360,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                    |- context[?Q] ] =>
                  inversion H; subst; simpl in *
                end.
-               auto.
+               unfold Function_Ctx_empty in *.
+               destruct F; simpl in *; destructAll; auto.
             -- destruct F; subst; simpl in *.
                unfold Function_Ctx_empty in *.
                simpl in *; destructAll; auto.
@@ -10850,12 +10810,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                     apply Hlemma; eauto.
                  -- eapply StructLinear_WellTyped.
                     1,3-13,15-20,23: eauto.
-                    --- apply eq_sym; auto.
-                    --- destruct F; subst; simpl in *.
-                        unfold Function_Ctx_empty in *; auto.
-                    --- let x := fresh "x" in
-                        intro x; destruct x as [[curL curHV] curSz].
-                        auto.
                     --- match goal with
                         | [ H' : SplitStoreTypings (?S :: ?S1 ++ ?S2) ?SP |- context[?SP] ] =>
                           eapply (SplitStoreTypings_get_heaptype_LinTyp (S1:=S)); [ | | exact H' ]; [ | constructor; auto ]
@@ -10868,6 +10822,15 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                         simpl.
                         unfold get_heaptype.
                         rewrite M.gss; auto.
+                    --- apply eq_sym; auto.
+                    --- destruct F; subst; simpl in *.
+                        unfold Function_Ctx_empty in *; auto.
+                    --- destruct F; subst; simpl in *.
+                        unfold Function_Ctx_empty in *; auto.
+                    --- let x := fresh "x" in
+                        intro x; destruct x as [[curL curHV] curSz].
+                        auto.
+                    --- eauto.
                - destruct m; subst; simpl in *.
                  -- rewrite forall2_map.
                     let x := fresh "x" in
@@ -11545,15 +11508,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                unfold empty_LinTyp.
                                destruct Sstack; simpl in *; subst.
                                auto.
-                        ------ destruct F; simpl in *; subst; eauto.
-                        ------ match goal with
-                               | [ H : TypeValid _ _ |- _ ] =>
-                                 inversion H; subst
-                               end.
-                               constructor; destruct F; simpl in *; subst; eauto.                  
-                               replace_heaptypevalid_parts label ret size type location.
-                               apply HeapTypeValid_linear.
-                               auto.
                   ----- match goal with
                         | [ H : HasTypeValue _ _ (Ref (LocP _ _)) _ |- _ ] => inversion H; subst
                         end.
@@ -11563,14 +11517,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                intro H'.
                                inversion H'.
                                apply Equivalence_Reflexive.
-                        ------ destruct F; simpl in *; eauto.
                         ------ match goal with
                                | [ H : TypeValid _ _ |- _ ] =>
                                  inversion H; subst
                                end.
                                constructor; destruct F; simpl in *; subst; eauto.
-                               replace_heaptypevalid_parts label ret size type location.
-                               apply HeapTypeValid_linear.
                                constructor.
                                simpl in *.
                                eapply Forall_combine_ReplaceAtIdx.
@@ -11584,7 +11535,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                        | [ H : sizeOfType _ _ = Some ?SZ |- _ ] => exists SZ
                                        end.
                                        simpl in *.
-                                       split; [ eauto | ].
+                                       split.
+                                       { unfold Function_Ctx_empty in *.
+                                         destructAll; simpl in *; subst; auto. }
                                        match goal with
                                        | [ H : HeapTypeValid _ _ |- _ ] =>
                                          inversion H; subst; simpl in *; eauto
@@ -11598,11 +11551,14 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                        intro Hold.
                                        destructAll; simpl in *.
                                        split; [ eauto | ].
-                                       split; eauto.
-                                       replace_typevalid_parts label ret size type location.
-                                       apply TypeValid_linear.
-                                       eauto.
+                                       repeat split; eauto.
+                                       all: unfold Function_Ctx_empty in *.
+                                       all: destructAll; simpl in *; subst; auto.
+                                       eapply TypeValid_Function_Ctx; eauto.
                   ----- destruct F; subst; simpl in *; solve_lcvs.
+                  ----- destruct F; simpl.
+                        rewrite get_set_hd.
+                        econstructor; eauto.
              ---- match goal with
                   | [ |- context[Arrow [?A] [?A; ?B]] ] =>
                     replace [A] with ([A] ++ []) at 1 by ltac:(simpl; auto);
@@ -11620,12 +11576,22 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                destruct Hempty; destruct F; simpl in *.
                                constructor; simpl; eauto.
                         ------ destruct F; subst; simpl in *; solve_lcvs.
+                        ------ destruct F; simpl.
+                               rewrite set_set_hd, get_set_hd.
+                               econstructor; eauto.
+                               
+                  ----- destruct F; simpl.
+                        rewrite get_set_hd.
+                        econstructor; eauto.
+                  ----- econstructor; eauto.
                   ----- destruct F; subst; simpl in *; constructor; solve_tvs.
                         match goal with
                         | [ H : Forall _ [?T; _] |- context[?T] ] =>
                           inv H
                         end.
                         eapply TypeValid_Function_Ctx; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- destruct F; subst; simpl in *; solve_tvs.
       -- do 3 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- match goal with
@@ -11827,7 +11793,12 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                     apply (HasTypeInstruction_app _ S2 S1 _ _ _ _ _ L _ _ [T])
                   end.
                   ----- apply ValTyp.
-                        2:{ destruct F; subst; simpl in *; solve_lcvs. }
+                        2:{ destruct F; subst; simpl in *.
+                            eapply LocalCtxValid_Function_Ctx.
+                            { eapply HasTypeInstruction_FirstLocalValid; eauto. }
+                            all: auto. }
+                        2:{ destruct F; simpl.
+                            rewrite get_set_hd; auto. }
                         apply HasTypeValue_update_linear_ctx.
                         eapply HasTypeValue_Function_Ctx; try eassumption;
                         unfold update_linear_ctx;
@@ -11846,6 +11817,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                apply QualLeq_Top.
                         ------ apply QualLeq_Top.
                         ------ use_HasTypeValues_imp_HasTypeInstruction F.
+                        ------ destruct F; simpl; rewrite get_set_hd; auto.
+                        ------ econstructor; eauto.
                         ------ destruct F; subst; simpl in *; solve_tvs.
                   ----- eapply SplitStoreTypings_permut; [ | eassumption ]; constructor.
              ---- match goal with
@@ -11864,12 +11837,19 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   ----- destruct F; simpl in *.
                         unfold get_hd; destruct linear; simpl; eauto.
                   ----- eapply ChangeEndLocalTyp.
+                        { eapply LocalCtxValid_Function_Ctx; eauto.
+                          all: destruct F; auto. }
                         { destruct F; subst; simpl in *; eauto. }
                         eapply ChangeBegLocalTyp.
+                        { eapply LocalCtxValid_Function_Ctx.
+                          { eapply HasTypeInstruction_FirstLocalValid; eauto. }
+                          all: destruct F; auto. }
                         { destruct F; subst; simpl in *.
                           unfold Function_Ctx_empty in *.
                           simpl in *; destructAll; eauto. }
                         eapply ChangeBegLocalTyp.
+                        { eapply LocalCtxValid_Function_Ctx; eauto.
+                          all: destruct F; auto. }
                         { destruct F; subst; simpl in *.
                           eapply LCEffEqual_sym; eauto. }
                         eapply BlockTyp.
@@ -12272,10 +12252,17 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                                           end.
                                                           simpl in *; eauto.
                                        -------- destruct F; subst; simpl in *; solve_lcvs.
+                                       -------- destruct F; simpl.
+                                                econstructor; eauto.
+                               ------- destruct F; simpl.
+                                       econstructor; eauto.
+                               ------- destruct F; simpl.
+                                       econstructor; eauto.
                                ------- destruct F; subst; simpl in *; solve_tvs.
                        ------ destruct F; simpl in *.
                               repeat rewrite set_set_hd in *; eauto.
                               eapply ChangeEndLocalTyp.
+                              { eapply LocalCtxValid_Function_Ctx; eauto. }
                               { eapply LCEffEqual_sym; eauto. }
                               eauto.
                        ------ unfold SplitStoreTypings.
@@ -12285,7 +12272,18 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                               assumption.
                        ------ destruct F; subst; simpl in *.
                               eapply LCEffEqual_trans; eauto.
+                       ------ destruct F; subst; simpl in *.
+                              eapply LocalCtxValid_Function_Ctx; eauto.
+                       ------ destruct F; subst; simpl in *.
+                              rewrite set_set_hd, get_set_hd.
+                              auto.
+                  ----- destruct F; simpl.
+                        rewrite get_set_hd; auto.
+                  ----- destruct F; simpl.
+                        auto.
                   ----- destruct F; subst; simpl in *; solve_tvs.
+         --- destruct F; subst; simpl in *; auto.
+         --- destruct F; subst; simpl in *; auto.
          --- destruct F; subst; simpl in *; solve_tvs.
       -- split; eauto.
          eapply sub_map_refl.
@@ -12471,9 +12469,13 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                ------- eapply ValTyp.
                                        2:{ destruct F; subst; simpl in *; solve_lcvs. }
                                        eapply HasTypeValue_empty_function_ctx.
-                                       eassumption.
-                                       destruct F; simpl in *.
-                                       constructor; simpl; destruct Hempty; eauto.
+                                       1:{ eassumption. }
+                                       all: destruct F; simpl in *.
+                                       1:{ constructor; simpl; destruct Hempty; eauto. }
+                                       rewrite get_set_hd; econstructor; eauto.
+                               ------- destruct F; simpl.
+                                       rewrite get_set_hd; auto.
+                               ------- econstructor; eauto.
                                ------- destruct F; subst; simpl in *; solve_tvs.
                         ------ match goal with
                                | [ |- context[Arrow (?TS ++ ?A) _] ] =>
@@ -12497,6 +12499,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                                 --------- constructor; econstructor; eauto.
                                                 --------- eapply QualLeq_Refl.
                                        -------- destruct F; subst; simpl in *; solve_lcvs.
+                                       -------- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+                               ------- destruct F; simpl; rewrite get_set_hd; auto.
+                               ------- econstructor; eauto.
                                ------- destruct F; subst; simpl in *; solve_tvs.
                                        constructor; auto.
                                        match goal with
@@ -12527,7 +12532,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                  - destruct F; subst; simpl in *; eauto.
                                    econstructor; eauto.
                                  - constructor.
-                                   eapply QualLeq_Refl.
+                                   -- econstructor; eauto.
+                                   -- eapply QualLeq_Refl.
                                  - destruct F; subst; simpl in *; solve_lcvs.
                                  - constructor.
                                    -- econstructor; eauto.
@@ -12535,9 +12541,15 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                    -- constructor.
                                       --- constructor.
                                           econstructor; eauto.
-                                      --- apply QualLeq_Refl. }
+                                      --- apply QualLeq_Refl.
+                                 - destruct F; simpl.
+                                   rewrite get_set_hd.
+                                   econstructor; eauto. }                                     
                                unfold EmptyRes in Hhti.
                                eassumption.
+                        ------ destruct F; simpl.
+                               rewrite get_set_hd; auto.
+                        ------ econstructor; eauto.
                         ------ destruct F; subst; simpl in *; solve_tvs.
                                constructor; auto.
                                match goal with
@@ -12685,8 +12697,12 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                     rewrite H in H'; inversion H'; subst
                   end.
                   eapply ChangeEndLocalTyp.
+                  { eapply LocalCtxValid_Function_Ctx; eauto.
+                    all: destruct F; auto. }
                   { destruct F; subst; simpl in *; eauto. }
                   eapply ChangeBegLocalTyp.
+                  { eapply LocalCtxValid_Function_Ctx; eauto.
+                    all: destruct F; auto. }
                   { destruct F; subst; simpl in *.
                     eapply LCEffEqual_sym; eauto. }
                   eapply BlockTyp.
@@ -12709,11 +12725,17 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                         end.
                         rewrite set_set_hd in *.
                         eapply ChangeEndLocalTyp.
+                        { eapply LocalCtxValid_Function_Ctx; eauto. }
                         { simpl.
                           eapply LCEffEqual_sym; eauto. }
                         eauto.
                   ----- destruct F; subst; simpl in *.
                         eapply LCEffEqual_trans; eauto.
+                  ----- eapply LocalCtxValid_Function_Ctx; eauto.
+                        all: destruct F; auto.
+                  ----- destruct F; simpl; rewrite get_set_hd; auto.
+         --- auto.
+         --- destruct F; subst; simpl in *; auto.
          --- destruct F; subst; simpl in *; solve_tvs.
       -- rewrite (eq_sym Hinst); eauto.
       -- split; eauto.
@@ -12811,6 +12833,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   ----- apply HasTypeValue_update_linear_ctx.
                         eassumption.
                   ----- destruct F; subst; simpl in *; solve_lcvs.
+                  ----- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
              ---- match goal with
                   | [ |- context[Arrow [?A] [?A; ?B]] ] =>
                     replace [A] with ([A] ++ []) by ltac:(simpl; auto);
@@ -12824,10 +12847,13 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                         apply QualLeq_Top.
                   ----- apply QualLeq_Top.
                   ----- eapply ChangeEndLocalTyp.
+                        { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                         { destruct F; subst; simpl in *; eauto. }
                         eapply ChangeEndLocalTyp.
+                        { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                         { destruct F; subst; simpl in *; eauto. }
                         eapply ChangeEndLocalTyp.
+                        { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                         { destruct F; subst; simpl in *; eauto. }
                         eapply ValTyp.
                         apply HasTypeValue_update_linear_ctx.
@@ -13159,7 +13185,12 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                end.
                                all: assumption.
                         ------ destruct F; subst; simpl in *; solve_lcvs.
+                        ------ destruct F; simpl; rewrite set_set_hd, get_set_hd; econstructor; eauto.
+                  ----- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+                  ----- econstructor; eauto.
                   ----- destruct F; subst; simpl in *; solve_tvs.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- split; eauto.
          eapply sub_map_refl.
@@ -13176,9 +13207,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
          intro Htl.
          destructAll.
          eapply ChangeEndLocalTyp; eauto.
+         { eapply HasTypeInstruction_SecondLocalValid; eauto. }
          show_tlvs Hi.
          eapply TrapTyp; auto.
-         solve_lcvs.
       -- split; eauto.
          eapply sub_map_refl.
       -- apply LCSizeEqual_refl.
@@ -14011,10 +14042,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                         end.
                         rewrite (eq_sym Heq_unr); eauto.
                   ----- destruct F; simpl in *; subst; eauto.
-                  ----- destruct F; simpl in *; subst.
-                        replace_typevalid_parts label ret size type location.
-                        apply TypeValid_linear.
-                        eauto.
+                  ----- auto.
              ---- econstructor.
                   ----- match goal with
                         | [ H : HasTypeValue _ _ (NumConst _ _) _ |- _ ] =>
@@ -14181,10 +14209,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                          inversion H'
                                        end.
                   ----- destruct F; simpl in *; subst; eauto.
-                  ----- destruct F; simpl in *; subst.
-                        replace_typevalid_parts label ret size type location.
-                        apply TypeValid_linear; eauto.
+                  ----- auto.
              ---- destruct F; subst; simpl in *; solve_lcvs.
+             ---- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 4 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
@@ -14206,9 +14235,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
          intro Htl.
          destructAll.
          eapply ChangeEndLocalTyp; eauto.
+         { eapply HasTypeInstruction_SecondLocalValid; eauto. }
          show_tlvs Hi.
          eapply TrapTyp; auto.
-         solve_lcvs.
       -- split; eauto.
          eapply sub_map_refl.
       -- apply LCSizeEqual_refl.
@@ -14242,9 +14271,12 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   simpl in *.
                   assumption.
              ---- constructor.
-                  eapply QualLeq_Refl.
+                  ----- econstructor; eauto.
+                  ----- eapply QualLeq_Refl.
              ---- destruct F; subst; simpl in *; solve_lcvs.
              ---- destruct F; subst; simpl in *; solve_tvs.
+             ---- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+         --- econstructor; eauto.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- split; eauto.
          eapply sub_map_refl.
@@ -14393,7 +14425,10 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                     apply (HasTypeInstruction_app _ S2 S1 _ _ _ _ _ L _ _ A)
                   end.
                   ----- apply ValTyp.
-                        2:{ destruct F; subst; simpl in *; solve_lcvs. }
+                        2:{ eapply LocalCtxValid_Function_Ctx.
+                            { eapply HasTypeInstruction_FirstLocalValid; eauto. }
+                            all: destruct F; auto. }
+                        2:{ destruct F; simpl in *; rewrite get_set_hd; auto. }
                         apply HasTypeValue_update_linear_ctx.
                         eapply HasTypeValue_Function_Ctx; try eassumption;
                         unfold update_linear_ctx;
@@ -14412,6 +14447,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                apply QualLeq_Top.
                         ------ apply QualLeq_Top.
                         ------ use_HasTypeValues_imp_HasTypeInstruction F.
+                        ------ destruct F; simpl in *; rewrite get_set_hd; auto.
+                        ------ econstructor; eauto.
                         ------ destruct F; subst; simpl in *; solve_tvs.
                   ----- eapply SplitStoreTypings_permut; [ | eassumption ].
                         constructor.
@@ -14427,12 +14464,17 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   ----- destruct F; simpl in *.
                         unfold get_hd; destruct linear; simpl; eauto.
                   ----- eapply ChangeEndLocalTyp.
+                        { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                         { destruct F; subst; simpl in *; eauto. }
                         eapply ChangeBegLocalTyp.
+                        { destruct F; eapply LocalCtxValid_Function_Ctx.
+                          { eapply HasTypeInstruction_FirstLocalValid; eauto. }
+                          all: auto. }
                         { destruct F; subst; simpl in *.
                           unfold Function_Ctx_empty in *.
                           simpl in *; destructAll; eauto. }
                         eapply ChangeBegLocalTyp.
+                        { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                         { destruct F; subst; simpl in *.
                           apply LCEffEqual_sym.
                           eauto. }
@@ -14685,6 +14727,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                                            end.
                                                 --------- destruct F; simpl in *; constructor; destruct Hempty; simpl in *; eauto.
                                        -------- destruct F; subst; simpl in *; solve_lcvs.
+                                       -------- destruct F; simpl; econstructor; eauto.
+                               ------- destruct F; simpl; econstructor; eauto.
+                               ------- econstructor; eauto.
                                ------- destruct F; subst; simpl in *; solve_tvs.
                         ------ match goal with
                                | [ H : SplitStoreTypings [_; ?S] Sstack
@@ -14915,6 +14960,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                    eassumption.
                                  - simpl in *.
                                    eapply SizeValid_empty_imp_all_SizeValid; eauto.
+                                 - simpl in *.
+                                   eapply SizeValid_empty_imp_all_SizeValid; eauto.
                                  - apply NoCapsPretype_empty_ctx.
                                    eassumption.
                                  - apply TypeValid_empty_ctx.
@@ -14925,7 +14972,10 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                  - destruct F; simpl in *.
                                    rewrite set_set_hd.
                                    do 2 rewrite set_set_hd in *.
-                                   eapply ChangeEndLocalTyp; [ | eauto ].
+                                   eapply ChangeEndLocalTyp; [ | | eauto ].
+                                   { eapply LocalCtxValid_Function_Ctx.
+                                     { eapply LocalCtxValid_weak_pretype; eauto. }
+                                     all: simpl; auto. }
                                    simpl.
                                    apply LCEffEqual_subst_weak_pretype.
                                    rewrite sizepairs_debruijn_weak_pretype.
@@ -14952,7 +15002,16 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                apply SplitStoreTypings_EmptyHeapTyping_l.
                         ------ destruct F; subst; simpl in *.
                                eapply LCEffEqual_trans; eauto.
+                        ------ destruct F; eapply LocalCtxValid_Function_Ctx; eauto.
+                        ------ destruct F; simpl.
+                               repeat rewrite get_set_hd.
+                               auto.
+                  ----- destruct F; simpl.
+                        rewrite get_set_hd; auto.
+                  ----- destruct F; simpl; auto.
                   ----- destruct F; subst; simpl in *; solve_tvs.
+         --- auto.
+         --- destruct F; simpl in *; auto.
          --- destruct F; subst; simpl in *; solve_tvs.
       -- split; eauto.
          eapply sub_map_refl.
@@ -15114,6 +15173,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
             | [ H : TypeValid (debruijn.subst_ext _ _) _ |- _ ] => exact H
             end.
           - simpl in *; eapply sizeOfPretype_empty_ctx; eauto.
+          - auto.
+          - auto.
           - auto.
           - auto. }
         all: simpl.
@@ -15337,7 +15398,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                            auto. }
                                        subst.
                                        apply HasTypeValue_empty_function_ctx.
-                                       all: assumption.
+                                       all: try assumption.
+                                       destruct F; simpl.
+                                       rewrite get_set_hd; econstructor; eauto.
+                               ------- destruct F; simpl; rewrite get_set_hd; auto.
+                               ------- econstructor; eauto.
                                ------- destruct F; subst; simpl in *; solve_tvs.
                         ------ match goal with
                                | [ |- context[?A ++ [?B; ?C]] ] =>
@@ -15364,12 +15429,17 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                        -------- constructor.
                                        -------- destruct F; subst; simpl in *; assumption.
                                        -------- constructor.
-                                                --------- destruct F; subst; simpl in *; eassumption.
+                                                --------- unfold Function_Ctx_empty in *; destructAll; destruct F; simpl in *; subst; auto.
                                                 --------- econstructor; eauto.
                                                 --------- econstructor.
                                                           constructor.
                                                           ---------- econstructor; eauto.
                                                           ---------- eapply QualLeq_Refl.
+                                       -------- destruct F; simpl.
+                                                rewrite get_set_hd; econstructor; eauto.
+                               ------- destruct F; simpl.
+                                       rewrite get_set_hd; auto.
+                               ------- econstructor; eauto.
                                ------- destruct F; subst; simpl in *; solve_tvs.
                   ----- match goal with
                         | [ |- context[?A ++ [?B; ?C]] ] =>
@@ -15395,7 +15465,8 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                ------- destruct F; subst; simpl in *; eauto.
                                ------- destruct F; subst; simpl in *; eauto.
                                ------- constructor.
-                                       eapply QualLeq_Refl.
+                                       -------- econstructor; eauto.
+                                       -------- eapply QualLeq_Refl.
                                ------- destruct F; subst; simpl in *; solve_lcvs.
                                ------- solve_tvs.
                                        destruct F; subst; simpl in *.
@@ -15407,10 +15478,16 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                        -------- constructor.
                                                 econstructor; eauto.
                                        -------- apply QualLeq_Refl.
+                               ------- destruct F; simpl.
+                                       rewrite get_set_hd; econstructor; eauto.
+                        ------ destruct F; simpl; rewrite get_set_hd; auto.
+                        ------ econstructor; eauto.
                         ------ destruct F; subst; simpl in *; solve_tvs.
              ---- eapply ChangeEndLocalTyp.
+                  { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                   { destruct F; subst; simpl in *; eauto. }
                   eapply ChangeBegLocalTyp.
+                  { destruct F; eapply LocalCtxValid_Function_Ctx; eauto. }
                   { destruct F; subst; simpl in *.
                     apply LCEffEqual_sym; eauto. }
                   eapply BlockTyp.
@@ -15498,6 +15575,7 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                   ----- apply SizeLeq_empty_ctx.
                         eassumption.
                   ----- eapply SizeValid_empty_imp_all_SizeValid; eauto.
+                  ----- eapply SizeValid_empty_imp_all_SizeValid; eauto.
                   ----- apply NoCapsPretype_empty_ctx.
                         eassumption.
                   ----- apply TypeValid_empty_ctx.
@@ -15507,13 +15585,20 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                         destructAll; auto.
                   ----- destruct F; subst; simpl in *.
                         repeat rewrite set_set_hd in *.
-                        eapply ChangeEndLocalTyp; [ | eauto ].
+                        eapply ChangeEndLocalTyp; [ | | eauto ].
+                        { eapply LocalCtxValid_Function_Ctx.
+                          { eapply LocalCtxValid_weak_pretype; eauto. }
+                          all: simpl; auto. }
                         simpl.
                         apply LCEffEqual_subst_weak_pretype.
                         rewrite sizepairs_debruijn_weak_pretype.
                         apply LCEffEqual_sym; auto.
                   ----- destruct F; subst; simpl in *.
                         eapply LCEffEqual_trans; eauto.
+                  ----- destruct F; eapply LocalCtxValid_Function_Ctx; eauto.
+                  ----- destruct F; simpl; rewrite get_set_hd; auto.
+         --- auto.
+         --- destruct F; simpl in *; auto.
          --- destruct F; subst; simpl in *; solve_tvs.
       -- rewrite (eq_sym Hinst); assumption.
       -- split; eauto.
@@ -15626,8 +15711,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
           rewrite (eq_sym Hinst).
           rewrite Hinst at 1.
 
-          apply free_mem_range_inst in H.
-          rewrite (eq_sym H).
+          match goal with
+          | [ H : free_mem_range _ _ _ = _ |- _ ] =>
+            apply free_mem_range_inst in H;
+            rewrite (eq_sym H)
+          end.
           assumption.
         - match goal with
           | [ H : HasTypeMeminst _ _ _ |- _ ] =>
@@ -16470,7 +16558,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              eapply QualLeq_Top.
          --- eapply QualLeq_Top.
          --- eapply EmptyTyp; auto.
-             destruct F; subst; simpl in *; solve_lcvs.
+             all: destruct F; subst; simpl in *.
+             ---- solve_lcvs.
+             ---- rewrite get_set_hd; econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- solve_tvs.
       -- do 2 ltac:(eapply LCEffEqual_HasTypeLocals; eauto).
       -- match goal with
@@ -17548,7 +17640,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                inversion H; subst; simpl in *
              end.
              destructAll; subst; auto. }
-           eapply HasHeapType_update_linear_ctx_rev; eauto.
+           eapply HasHeapType_Function_Ctx; [ | | | | eauto ].
+           all: unfold Function_Ctx_empty in *.
+           all: destructAll; destruct F; simpl in *; subst; auto.
          }
          6:{
            destructAll.
@@ -17562,13 +17656,17 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
              assert (H : UT = UnrTyp S) by solve_inst_or_unr_typ_eq;
              rewrite H
            end.
-           apply HasHeapType_update_unr_add_loc;
-             [ eapply HasHeapType_update_linear_ctx_rev; eauto | ].
-           match goal with
-           | [ H : UnrTyp ?S1 = UnrTyp ?S2 |- context[UnrTyp ?S2] ] =>
-             rewrite (eq_sym H)
-           end.
-           eauto.
+           apply HasHeapType_update_unr_add_loc.
+           2:{
+             match goal with
+             | [ H : UnrTyp ?S1 = UnrTyp ?S2 |- context[UnrTyp ?S2] ] =>
+               rewrite (eq_sym H)
+             end.
+             eauto.
+           }
+           eapply HasHeapType_Function_Ctx; [ | | | | eauto ].
+           all: unfold Function_Ctx_empty in *.
+           all: destructAll; destruct F; simpl in *; subst; auto.
          }
          all:
            try match goal with
@@ -18297,7 +18395,9 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                         apply OrdersEx.Nat_as_OT.add_pos_r.
                         exact Nat.lt_0_1.
                   ----- apply HeapTypeValid_debruijn_subst_SLoc.
-                        eapply HeapTypeValid_update_linear_ctx_rev; eauto.
+                        eapply HeapTypeValid_Function_Ctx; eauto.
+                        all: unfold Function_Ctx_empty in *.
+                        all: destructAll; destruct F; simpl in *; subst; auto.
              ---- simpl.
                   unfold debruijn.get_var'.
                   simpl.
@@ -18355,11 +18455,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                eapply QualConstValid; eauto.
                                eapply LocPValid; eauto.
                                destruct F; simpl in *; subst.
-                               match goal with
-                               | [ H : HasHeapType _ ?F _ _ |- _ ] =>
-                                 replace label with (typing.label F) by ltac:(simpl; eauto); replace ret with (typing.ret F) by ltac:(simpl; eauto); replace size with (typing.size F) by ltac:(simpl; eauto); replace type with (typing.type F) by ltac:(simpl; eauto); replace location with (typing.location F) by ltac:(simpl; eauto)
-                               end.
-                               eapply HeapTypeValid_linear.
                                eapply HasHeapType_HeapTypeValid; eauto.
                   ----- econstructor; simpl in *; destructAll.
                         ------ assumption.
@@ -18368,13 +18463,11 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
                                eapply QualConstValid; eauto.
                                eapply LocPValid; eauto.
                                destruct F; simpl in *; subst.
-                               match goal with
-                               | [ H : HasHeapType _ ?F _ _ |- _ ] =>
-                                 replace label with (typing.label F) by ltac:(simpl; eauto); replace ret with (typing.ret F) by ltac:(simpl; eauto); replace size with (typing.size F) by ltac:(simpl; eauto); replace type with (typing.type F) by ltac:(simpl; eauto); replace location with (typing.location F) by ltac:(simpl; eauto)
-                               end.
-                               eapply HeapTypeValid_linear.
                                eapply HasHeapType_HeapTypeValid; eauto.
              ---- destruct F; subst; simpl in *; solve_lcvs.
+             ---- destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+         --- auto.
+         --- econstructor; eauto.
          --- auto.
       -- match goal with
          | [ H : context[qualconstr_eq_dec ?Q _] |- _ ] =>
@@ -18523,7 +18616,6 @@ Module PreservationFull (M : Memory) (T : MemTyping M).
          show_tlvs Hi.
          eapply ChangeEndLocalTyp; eauto.
          eapply TrapTyp; auto.
-         solve_lcvs.
       -- split; eauto.
          eapply sub_map_refl.
       -- apply LCSizeEqual_refl.

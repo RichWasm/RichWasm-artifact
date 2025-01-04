@@ -10,7 +10,6 @@ Open Scope monad_scope.
 Require Import RWasm.term RWasm.memory RWasm.reduction RWasm.typing RWasm.tactics RWasm.list_util
         RWasm.map_util RWasm.EnsembleUtil RWasm.splitting RWasm.surface RWasm.debruijn RWasm.subst.
 
-(* Used in preservation_full *)
 Definition Function_Ctx_empty (F : Function_Ctx) :=
   qual F = [] /\ size F = [] /\ type F = [] /\ location F = 0.
 
@@ -98,18 +97,53 @@ Section StoreEq.
       try (assert (Hseq' := Hseq); destruct Hseq as [Heq1 [Heq2 Heq3]]);
       try now (econstructor; eauto; now erewrite <- is_empty_eq_map; eauto).
     - econstructor; auto. eapply HasTypeValue_StoreTyping_eq; eauto.
-    - econstructor; eauto.
+    - econstructor.
       now erewrite <- is_empty_eq_map; eauto.
-      revert H3 H2 Hseq'. clear.
-      intros Hall1 Hall2 Heq.
-      induction Hall1; simpl in *; eauto.
-      inv Hall2. constructor; eauto.
-    - econstructor; eauto.
+      1-2: eauto.
+      all: auto.
+      -- revert H3 H2 Hseq'. clear.
+         intros Hall1 Hall2 Heq.
+         induction Hall1; simpl in *; auto.
+         inv Hall2. constructor; [ eauto | ].
+         apply IHHall1; auto.
+         --- match goal with
+             | [ H : Forall ?P _ |- Forall ?P _ ] => inv H; auto
+             end.
+         --- match goal with
+	         | [ H : TypeValid _ (QualT (RefT _ _ _) _) |- _ ] =>
+                 inv H
+             end.
+             econstructor; eauto.
+             match goal with
+             | [ H : HeapTypeValid _ _ |- _ ] => inv H
+             end.
+             econstructor; eauto.
+             match goal with
+             | [ H : Forall ?P _ |- Forall ?P _ ] => inv H; auto
+             end.
+      -- auto.
+      -- auto.
+    - econstructor; auto.
       now erewrite <- is_empty_eq_map; eauto.
-      revert H0 H1 Hseq'. clear.
-      intros Hall1 Hall2 Heq.
-      induction Hall1; simpl in *; eauto.
-      inv Hall2. constructor; eauto.
+      -- revert H0 H1 Hseq'. clear.
+         intros Hall1 Hall2 Heq.
+         induction Hall1; simpl in *; eauto.
+         inv Hall2. constructor; eauto.
+         apply IHHall1; auto.
+         --- match goal with
+	         | [ H : TypeValid _ (QualT (RefT _ _ _) _) |- _ ] =>
+                 inv H
+             end.
+             econstructor; eauto.
+             match goal with
+             | [ H : HeapTypeValid _ _ |- _ ] => inv H
+             end.
+             econstructor; eauto.
+             match goal with
+             | [ H : Forall ?P _ |- Forall ?P _ ] => inv H; auto
+             end.
+      -- auto.
+      -- auto.
     - econstructor; eauto.
       assert (H' : empty_LinTyp S = empty_LinTyp S2).
       { unfold empty_LinTyp.
@@ -417,33 +451,60 @@ Section Utils.
         destruct C; subst; simpl in *;
         destruct F; subst; simpl in *
       end.
-    all: try ltac:(econstructor; eauto).
-    - rewrite Forall_forall in *. intros.
-      eapply H1; eauto.
-    - rewrite Forall_forall in *. intros.
-      eapply H; eauto.
-    - rewrite Forall_forall in *. intros.
+    all: try now ltac:(econstructor; eauto).
+    - econstructor; simpl; auto.
+      2: eauto.
+      all: auto.
+    - econstructor; simpl; auto.
+      rewrite Forall_forall in *. intros.
+      eauto.
+    - econstructor; simpl; auto.
+      rewrite Forall_forall in *. intros.
       specialize (H _ H0).
+      eauto.
+    - econstructor; simpl; auto.
+      rewrite Forall_forall in *. intros.
+      match goal with
+      | [ H : forall _, _ -> _, H' : List.In _ _ |- _ ] =>
+          specialize (H _ H')
+      end.
       destructAll.
-      exists x0. split; auto.
-    - rewrite Forall_forall in *. intros.
-      eapply H; eauto.
-    - rewrite Forall_forall in *. intros.
-      eapply H0; eauto.
-    - clear H0.
-      generalize dependent label.
-      revert label0 ret ret0 qual0 size0 type0 location0 linear linear0.
-      induction quants; simpl; intros; econstructor; inversion H; subst.
-      + clear H H4 IHquants.
-        generalize dependent label.
-        revert label0 ret ret0 qual0 size0 type0 location0 linear linear0.
-        induction a; simpl; intros; eauto.
-      + destruct a; simpl in *; unfold subst'_function_ctx; simpl; eauto.
-   - clear H.
-     generalize dependent label.
-      revert label0 ret ret0 qual0 size0 type0 location0 linear linear0.
-     induction quants; simpl; auto. destruct a; simpl in *;
-       unfold subst'_function_ctx in *; simpl in *; eauto.
+      eexists; split; eauto.
+    - econstructor; simpl; auto.
+      all: rewrite Forall_forall in *; eauto.
+    - econstructor; simpl; auto.
+      -- match goal with
+         | [ H : KindVarsValid _ _ |- _ ] => revert H
+         end.
+         clear.
+         revert label ret linear label0 ret0 linear0 qual0 size0 type0 location0 linear0.
+         induction quants.
+         all: intros; constructor.
+         --- match goal with
+             | [ H : KindVarsValid _ _ |- _ ] => inv H
+             end.
+             match goal with
+             | [ H : KindVarValid _ ?X |- _ ] => destruct X; simpl in *; auto
+             end.
+         --- match goal with
+             | [ H : KindVarsValid _ _ |- _ ] => inv H
+             end.
+             match goal with
+             | [ H : KindVarValid _ ?X |- _ ] => destruct X; simpl in *
+             end.
+             all: unfold subst'_function_ctx in *; simpl in *; eauto.
+      -- match goal with
+         | [ H : forall _, _ |- _ ] => eapply H; eauto
+         end.
+         all: clear.
+         all: revert label ret linear label0 ret0 linear0 qual0 size0 type0 location0 linear0.
+         all: induction quants.
+         all: intros; simpl; auto.
+         all:
+           match goal with
+           | [ |- context[add_constraint _ ?IDX] ] => destruct IDX; simpl
+           end.
+         all: unfold subst'_function_ctx; simpl; eauto.
  Qed.
     
   Lemma TypeValid_Function_Ctx : forall {F F' t},
@@ -483,7 +544,6 @@ Section Utils.
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
-    - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
       eapply H; eassumption.
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
       eapply Forall3_monotonic_strong; [ | eassumption ].
@@ -491,18 +551,11 @@ Section Utils.
       eapply Forall_forall in H. eapply H; eassumption.
       destruct F; destruct F'; simpl in *. eassumption.
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
-      destruct F; destruct F'; simpl in *.
-      subst. eassumption.
-    - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
-      destruct F; destruct F'; simpl in *.
-      subst. eassumption.
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
     - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
       destruct F; destruct F'; simpl in *.
       subst. eassumption.
-    - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto).
-    - econstructor; try eassumption; try (eapply TypeValid_Function_Ctx; eauto); eauto.
-      rewrite Heq4 in H2. auto.
+      eauto.
   Qed.
 
   Lemma TypeValid_linear : forall F h li,
@@ -547,7 +600,9 @@ Section Utils.
       eapply QualLeq_Trans; eauto.
     - inv H; eapply TCoderefValid; eauto.
     - inv H. eapply TRecValid; eauto.
-      eapply QualLeq_Trans. exact H10. exact H4.
+      eapply QualLeq_Trans.
+      2: eauto.
+      auto.
     - inv H; eapply TPtrValid; eauto.
     - inv H; eapply TExLocValid; eauto.
       eapply QualLeq_Trans; eauto.
@@ -559,6 +614,7 @@ Section Utils.
 
 
   Lemma HasTypeValue_QualLt S F v pt d d' :
+    Function_Ctx_empty F ->
     HasTypeValue S F v (QualT pt d) ->
     (forall (cap : cap) (l : Loc) (ht : HeapType),
         pt <> CapT cap l ht) ->
@@ -573,8 +629,39 @@ Section Utils.
     try now match goal with
             | [ H : HasTypeValue _ _ _ _ |- _ ] => inv H; econstructor; eauto; eapply TypeValid_QualLt; eauto
             end.
-    - inv H; exfalso; eapply H1; reflexivity.
-    - inv H; exfalso; eapply H0; reflexivity.
+    - match goal with
+      | [ H : HasTypeValue _ _ _ _ |- _ ] => inv H; econstructor; eauto; eapply TypeValid_QualLt; eauto
+      end.
+      -- intros; intro.
+         match goal with
+         | [ H : CoderefT _ = _ |- _ ] => inv H
+         end.
+      -- unfold Function_Ctx_empty in *.
+         destructAll.
+         destruct F; simpl in *; subst.
+         auto.
+      -- unfold Function_Ctx_empty in *.
+         destructAll.
+         destruct F; simpl in *; subst.
+         auto.
+    - match goal with
+      | [ H : HasTypeValue _ _ _ _ |- _ ] => inv H
+      end.
+      all: exfalso.
+      all:
+        match goal with
+        | [ H : context[RefT _ _ _ <> RefT _ _ _] |- _ ] =>
+            eapply H; eauto
+        end.
+    - match goal with
+      | [ H : HasTypeValue _ _ _ _ |- _ ] => inv H
+      end.
+      all: exfalso.
+      all:
+        match goal with
+        | [ H : context[CapT _ _ _ <> CapT _ _ _] |- _ ] =>
+            eapply H; eauto
+        end.
   Qed.
 
 
@@ -649,6 +736,476 @@ Section Utils.
     end.
 
 
+  Inductive Function_Ctx_sub: Function_Ctx -> Function_Ctx -> Prop :=
+  | F_Ctx_sub: forall F F',
+      list_sub (type F) (type F') ->
+      list_sub (qual F) (qual F') ->
+      list_sub (size F) (size F') ->
+      location F <= location F' ->
+      Function_Ctx_sub F F'.
+
+  Ltac list_sub_subst :=
+    match goal with
+    | [ H : list_sub ?l1 _ |- list_sub (map _ ?l1) _ ] =>
+      induction H as [x | x1 x2 x3 x4 x5]; constructor; eapply x5;
+      constructor; auto
+    end.
+
+  Ltac func_sub_subst H F F' :=
+    inversion H; subst; destruct F; destruct F'; subst;
+    constructor; simpl in *;try list_sub_subst; lia.
+
+  Theorem Function_Ctx_sub_debruijn_weak_SLoc F F':
+    Function_Ctx_sub F F' ->
+    Function_Ctx_sub
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SLoc)) F)
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SLoc)) F').
+  Proof.
+    intros.
+    func_sub_subst H F F'.
+  Qed.
+
+  Theorem Function_Ctx_sub_debruijn_weak_SPretype F F':
+    Function_Ctx_sub F F' ->
+    Function_Ctx_sub
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SPretype)) F)
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SPretype)) F').
+  Proof.
+    intros.
+    func_sub_subst H F F'.
+  Qed.
+
+  Theorem Function_Ctx_sub_debruijn_weak_SQual F F':
+    Function_Ctx_sub F F' ->
+    Function_Ctx_sub
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SQual)) F)
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SQual)) F').
+  Proof.
+    intros.
+    func_sub_subst H F F'.
+  Qed.
+
+  Theorem Function_Ctx_sub_debruijn_weak_SSize F F':
+    Function_Ctx_sub F F' ->
+    Function_Ctx_sub
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SSize)) F)
+      (subst'_function_ctx (debruijn.subst'_of (debruijn.weak subst.SSize)) F').
+  Proof.
+    intros.
+    func_sub_subst H F F'.
+  Qed.
+
+  Theorem Function_Ctx_sub_add_constraint F F' a:
+    Function_Ctx_sub F F' ->
+    Function_Ctx_sub (add_constraint F a) (add_constraint F' a).
+  Proof.
+    revert F F'.
+    induction a; intros; simpl.
+    - apply Function_Ctx_sub_debruijn_weak_SLoc.
+      inversion H; subst.
+      constructor; destruct F; destruct F'; simpl; auto.
+      simpl in H3. lia.
+    - apply Function_Ctx_sub_debruijn_weak_SQual.
+      inversion H; destruct F; destruct F'; subst; simpl.
+      constructor; simpl; auto.
+      constructor. auto.
+    - apply Function_Ctx_sub_debruijn_weak_SSize.
+      inversion H; destruct F; destruct F'; subst; simpl.
+      constructor; simpl; auto.
+      constructor; auto.
+    - apply Function_Ctx_sub_debruijn_weak_SPretype.
+      inversion H; subst.
+      constructor; destruct F; destruct F'; simpl; auto.
+      constructor; auto.
+  Qed.
+
+  Theorem Function_Ctx_sub_add_constraints F F' l:
+    Function_Ctx_sub F F' ->
+    Function_Ctx_sub (add_constraints F l) (add_constraints F' l).
+  Proof.
+    revert F F'. induction l; intros; auto.
+    simpl.
+    eapply IHl. eapply Function_Ctx_sub_add_constraint; auto.
+  Qed.
+
+  Lemma QualLeq_empty_ctx q q' L :
+    QualLeq [] q q' = Some true ->
+    QualLeq L q q' = Some true.
+  Proof.
+    intros.
+    eapply QualLeq_Bigger_Ctx; eauto.
+    constructor.
+  Qed.
+
+  Lemma QualLeq_sub: forall F F' q q',
+      Function_Ctx_sub F F' ->
+      QualLeq (qual F) q q' = Some true ->
+      QualLeq (qual F') q q' = Some true.
+  Proof.
+    intros.
+    eapply QualLeq_Bigger_Ctx; eauto.
+    inversion H; auto.
+  Qed.
+
+  Lemma SizeLeq_sub: forall F F' sz sz',
+      Function_Ctx_sub F F' ->
+      SizeLeq (size F) sz sz' = Some true ->
+      SizeLeq (size F') sz sz' = Some true.
+  Proof.
+    intros.
+    eapply SizeLeq_Bigger_Ctx; eauto.
+    inversion H; auto.
+  Qed.
+
+  Theorem Function_Ctx_sub_Empty: forall F,
+      Function_Ctx_sub empty_Function_Ctx F.
+  Proof.
+    intros. constructor; try constructor; auto.
+    simpl.
+    lia.
+  Qed.
+
+  Theorem list_sub_refl {T}: forall (l: list T),
+      list_sub l l.
+  Proof.
+    intros. induction l; constructor; auto.
+  Qed.
+
+  Theorem Function_Ctx_sub_refl: forall F,
+      Function_Ctx_sub F F.
+  Proof.
+    destruct F. constructor; simpl; try apply list_sub_refl. lia.
+  Qed.
+
+  Theorem list_sub_nth_error {T}: forall (l1 l2: list T) n x,
+      list_sub l1 l2 ->
+      nth_error l1 n = Some x ->
+      nth_error l2 n = Some x.
+  Proof.
+    intros. generalize dependent n.
+    induction H; intros; destruct n; inversion H0; subst; simpl; auto.
+    rewrite H2. eauto.
+  Qed.
+
+  Lemma Function_Ctx_sub_qual_nth_error: forall F F' n q,
+      Function_Ctx_sub F F' ->
+      nth_error (qual F) n = Some q ->
+      nth_error (qual F') n = Some q.
+  Proof.
+    intros. induction H.
+    eapply list_sub_nth_error; eauto.
+  Qed.
+
+  Lemma Function_Ctx_sub_type_nth_error: forall F F' n q,
+      Function_Ctx_sub F F' ->
+      nth_error (type F) n = Some q ->
+      nth_error (type F') n = Some q.
+  Proof.
+    intros. induction H.
+    eapply list_sub_nth_error; eauto.
+  Qed.
+
+  Lemma Function_Ctx_sub_size_nth_error: forall F F' n q,
+      Function_Ctx_sub F F' ->
+      nth_error (size F) n = Some q ->
+      nth_error (size F') n = Some q.
+  Proof.
+    intros. induction H.
+    eapply list_sub_nth_error; eauto.
+  Qed.
+
+  Lemma QualValid_sub: forall F F' q,
+      Function_Ctx_sub F F' -> QualValid (qual F) q -> QualValid (qual F') q.
+  Proof.
+    intros. inversion H0; subst.
+    econstructor; eauto.
+    eapply QualVarValid. reflexivity.
+    eapply Function_Ctx_sub_qual_nth_error; eauto.
+  Qed.
+
+  Lemma LocValid_sub: forall F F' v,
+      Function_Ctx_sub F F' ->
+      LocValid (location F) v ->
+      LocValid (location F') v.
+  Proof.
+    intros. inversion H. inversion H0; subst.
+    - econstructor; eauto.
+    - eapply LocVValid; eauto. lia.
+  Qed.
+
+  Lemma SizeValid_sub: forall F F' sz,
+      Function_Ctx_sub F F' ->
+      SizeValid (size F) sz ->
+      SizeValid (size F') sz.
+  Proof.
+    intros. inversion H; subst.
+    induction H0; subst.
+    - eapply SizeConstValid; eauto.
+    - eapply SizePlusValid; eauto.
+    - eapply SizeVarValid; eauto.
+      eapply list_sub_nth_error; eauto.
+  Qed.
+
+  Lemma KindVarValid_sub k F F':
+    Function_Ctx_sub F F' ->
+    KindVarValid F k ->
+    KindVarValid F' k.
+  Proof.
+    intros.
+    induction k; simpl in *; auto; destruct H0; split; try rewrite Forall_forall in *; intros;
+      match goal with
+      | [ |- (QualValid _ _)] => eapply QualValid_sub; eauto
+      | [ |- (SizeValid _ _)] => eapply SizeValid_sub; eauto
+      end.
+  Qed.
+
+  Lemma KindVarsValid_sub l F F':
+    Function_Ctx_sub F F' ->
+    KindVarsValid F l ->
+    KindVarsValid F' l.
+  Proof.
+    revert F F'.
+    induction l; intros; constructor; inversion H0; subst.
+    - eapply KindVarValid_sub; eauto.
+    - eapply IHl; eauto.
+      apply Function_Ctx_sub_add_constraint; auto.
+  Qed.
+
+  Lemma KindVarsValid_empty_ctx l F:
+    KindVarsValid empty_Function_Ctx l -> KindVarsValid F l.
+  Proof.
+    intros.
+    eapply KindVarsValid_sub; eauto.
+    apply Function_Ctx_sub_Empty.
+  Qed.
+
+  Theorem list_sub_app {T}: forall (l1 l2: list T),
+      list_sub l1 l2 -> exists l', l1 ++ l' = l2.
+  Proof.
+    intros l1. induction l1; intros; inversion H; subst.
+    - eexists; simpl; auto.
+    - simpl.
+      specialize (IHl1 L' H3). destruct IHl1.
+      exists x. f_equal. auto.
+  Qed.
+
+  Lemma cons_append: forall {T} (x: T) L,
+      x::L = [x]++L.
+  Proof.
+    simpl; auto.
+  Qed.
+
+  Lemma sizeOfType_add_ctx t L L' sz:
+    sizeOfType L' t = Some sz ->
+    sizeOfType (L' ++ L) t = Some sz.
+  Proof.
+    generalize dependent L.
+    generalize dependent L'.
+    generalize dependent sz.
+    induction t using Typ_ind' with
+        (H := fun h => True)
+        (P := fun p => forall sz L L', sizeOfPretype L  p = Some sz -> sizeOfPretype (L ++ L') p = Some sz)
+        (F := fun f => True)
+        (A := fun a => True); auto; intros.
+    - generalize dependent L'. generalize dependent v.
+      induction L; intros; destruct v; try discriminate H.
+      + injection H as h. subst. auto.
+      + apply IHL. auto.
+    - rewrite Forall_forall in H.
+      generalize dependent sz. generalize dependent L'. generalize dependent L.
+      induction l; intros; simpl in *; auto.
+      destruct (sizeOfType L a) eqn:Eq.
+      + erewrite H; eauto.
+        destruct (fold_size (map (sizeOfType L) l)) eqn:Eq'.
+        ++ erewrite IHl; eauto.
+        ++ discriminate H0. 
+      + discriminate H0.
+    - simpl in *.
+      rewrite cons_append.
+      rewrite app_assoc.
+      apply IHt. auto.
+  Qed.
+
+  Lemma sizeOfPretype_add_ctx p L L' sz:
+    sizeOfPretype L' p = Some sz ->
+    sizeOfPretype (L' ++ L) p = Some sz.
+  Proof.
+    revert L L' sz.
+    induction p; intros; auto; simpl in *.
+    - generalize dependent v. generalize dependent L.
+      induction L'; intros; destruct v; auto; inversion H; subst; auto.
+      simpl. rewrite IHL'; auto.
+    - generalize dependent L'.
+      generalize dependent L.
+      generalize dependent sz.
+      induction l; intros; auto.
+      simpl. simpl in H.
+      destruct (sizeOfType L' a) eqn:Eq.
+      + erewrite sizeOfType_add_ctx; eauto.
+        destruct (fold_size (map (sizeOfType L') l)) eqn:Eq'.
+        ++ erewrite IHl; eauto.
+        ++ inversion H.
+      + inversion H.
+    - rewrite cons_append.
+      rewrite app_assoc.
+      apply sizeOfType_add_ctx.
+      rewrite <- cons_append.
+      auto.
+    - apply sizeOfType_add_ctx.
+      auto.
+  Qed.
+
+  Lemma sizeOfPretype_sub_ctx L L' p sz:
+    list_sub L L' ->
+    sizeOfPretype L p = Some sz ->
+    sizeOfPretype L' p = Some sz.
+  Proof.
+    intros.
+    apply list_sub_app in H. destruct H.
+    rewrite <- H.
+    eapply sizeOfPretype_add_ctx.
+    auto.
+  Qed.
+
+  Lemma sizeOfType_sub_ctx L L' t sz:
+    list_sub L L' ->
+    sizeOfType L t = Some sz ->
+    sizeOfType L' t = Some sz.
+  Proof.
+    intros.
+    apply list_sub_app in H. destruct H.
+    rewrite <- H.
+    eapply sizeOfType_add_ctx. auto.
+  Qed.
+
+  Lemma TypeValid_sub: forall tau F F',
+      (TypeValid F tau) ->
+      Function_Ctx_sub F F' ->
+      (TypeValid F' tau).
+  Proof.
+    intro tau. destruct tau.
+    generalize dependent q.
+    induction p using Pretype_ind' with
+        (Q := fun tau => forall F F', Function_Ctx_sub F F' -> TypeValid F tau -> TypeValid F' tau)
+        (F := fun tau => forall F F', Function_Ctx_sub F F' -> FunTypeValid F tau -> FunTypeValid F' tau)
+        (H := fun tau => forall F F', Function_Ctx_sub F F' -> HeapTypeValid F tau -> HeapTypeValid F' tau)
+        (A := fun tau => forall F F', Function_Ctx_sub F F' -> ArrowTypeValid F tau -> ArrowTypeValid F' tau); intros; auto; inversion H; subst; try econstructor; eauto;
+      try match goal with
+          | [ |- (QualValid _ _)] => eapply QualValid_sub; eauto
+          | [ |- (LocValid _ _)] => eapply LocValid_sub; eauto
+          | [ |- (QualLeq _ _ _ = Some true)] => eapply QualLeq_sub; eauto
+          | [ |- (SizeValid _ _)] => eapply SizeValid_sub; eauto                                                             
+          end.
+    - eapply Function_Ctx_sub_type_nth_error; eauto.
+    - inversion H0. subst. auto.
+    - inversion H0. subst. auto.
+    - inversion H0; subst.
+      inversion H; subst.
+      inversion H8; subst.
+      apply Forall_cons.
+      + destruct x. eapply QualLeq_sub; eauto.
+      + rewrite Forall_forall. intros. destruct x0.
+        rewrite Forall_forall in H12.
+        eapply QualLeq_sub. eauto.
+        specialize (H12 (QualT p q0) H4).
+        exact H12.
+    - inversion H0; subst.
+      inversion H. inversion H9; subst.
+      apply Forall_cons. 
+      + eapply H7; eauto.
+      + rewrite Forall_forall. intros.
+        rewrite Forall_forall in H3. eapply H3; eauto.
+        rewrite Forall_forall in H14. eauto.
+    - simpl. simpl in *.
+      eapply sizeOfPretype_sub_ctx; eauto.
+      constructor. inversion H0; subst; auto.
+    - eapply IHp; eauto.
+      eapply Function_Ctx_sub_debruijn_weak_SPretype.
+      inversion H0; subst. destruct F; destruct F'; subst; auto.
+      constructor; simpl; auto.
+      constructor; auto.
+    - eapply IHp; eauto.
+      apply Function_Ctx_sub_debruijn_weak_SLoc.
+
+      inversion H0; destruct F; destruct F'; subst; auto; simpl in *.
+      constructor; simpl; auto. lia.
+    - inversion H0; subst.
+      eapply KindVarsValid_sub; eauto.
+    - inversion H0; subst. eapply IHp; eauto.
+      eapply Function_Ctx_sub_add_constraints; auto.
+    - inversion H2; subst.
+      rewrite Forall_forall. intros.
+      rewrite Forall_forall in H0. eapply H0; eauto.
+      rewrite Forall_forall in H7; eauto.
+    - inversion H2. inversion H; inversion H8; subst.
+      apply Forall_cons.
+      + eapply H3; eauto.
+      + rewrite Forall_forall. intros.
+        rewrite Forall_forall in H13. eapply H13; eauto.
+        rewrite Forall_forall in H17. eauto.
+    - inversion H2; subst.
+      rewrite Forall_forall. intros.
+      rewrite Forall_forall in H0. eapply H0; eauto.
+      rewrite Forall_forall in H9. eauto.
+    - inversion H1; subst.
+      inversion H; subst. inversion H6; subst.
+      apply Forall_cons.
+      + eapply H2; eauto.
+      + rewrite Forall_forall. intros.
+        rewrite Forall_forall in H8. eapply H8; eauto.
+        rewrite Forall_forall in H10; eauto.
+    - inversion H1; subst.
+      inversion H6; subst.
+      apply Forall_cons.
+      + destruct H7. destruct H4. destruct H5. destruct H7.
+        exists x0. split. inversion H0; subst. eapply sizeOfType_sub_ctx; eauto. 
+        split. eapply SizeValid_sub; eauto.
+        split. eapply SizeValid_sub; eauto.
+        split. inversion H; subst.
+        destruct x. eapply H12; eauto.
+        destructAll; simpl in *; auto.
+        eapply SizeLeq_sub; eauto.
+        destructAll; auto.
+      + rewrite Forall_forall. intros.
+        rewrite Forall_forall in H8.
+        specialize (H8 x0 H4).
+        destruct H8. destruct H5. destruct H8. destruct H9.
+        exists x1.
+        split. inversion H0. subst. eapply sizeOfType_sub_ctx; eauto.
+        split. eapply SizeValid_sub; eauto.
+        split. eapply SizeValid_sub; eauto.
+        split. inversion H; subst. rewrite Forall_forall in H14.
+        specialize (H14 x0 H4).
+        destruct x0. eapply H14; eauto.
+        destructAll; simpl in *; auto.
+        eapply SizeLeq_sub; eauto.
+        destructAll; auto.
+    - inversion H0; subst.
+      constructor.
+      eapply IHp; eauto.
+      eapply QualLeq_sub; eauto.
+    - inversion H0; subst.
+      eapply SizeValid_sub; eauto.
+      eapply Function_Ctx_sub_refl.
+    - inversion H0; subst.
+      eapply QualValid_sub; eauto.
+      apply Function_Ctx_sub_refl.
+    - inversion H0; subst.
+      eapply IHp; eauto.
+      eapply Function_Ctx_sub_debruijn_weak_SPretype.
+      constructor; destruct F; destruct F'; simpl; auto.
+      constructor. auto.
+  Qed.
+
+  Lemma TypeValid_empty_ctx: forall tau F,
+      (TypeValid empty_Function_Ctx tau) ->
+      (TypeValid F tau).
+  Proof.
+    intros.
+    eapply TypeValid_sub; eauto.
+    apply Function_Ctx_sub_Empty.
+  Qed.
+
   (** HasTypeInstruction lemmas *)
 
   Theorem HasType_Valid S F v t:
@@ -660,6 +1217,7 @@ Section Utils.
     generalize dependent v.
     destruct t.
     induction p; intros; inversion H; subst; auto.
+    all: apply TypeValid_empty_ctx; auto.
   Qed.
 
   Ltac solve_trivial_tlv_subgoal F :=
@@ -672,7 +1230,9 @@ Section Utils.
       specialize (H _ H')
     end;
     destyp;
-    eapply TypeValid_Function_Ctx; eauto;
+    try split;
+    destructAll;
+    try eapply TypeValid_Function_Ctx; eauto;
     destruct F; subst; simpl in *; auto.
 
   Ltac start_tlv_goal :=
@@ -690,6 +1250,7 @@ Section Utils.
   Lemma LocalCtxValid_set_localtype_provable : forall idx sz F L tau,
       LocalCtxValid F L ->
       TypeValid F tau ->
+      SizeValid (size F) sz ->
       LocalCtxValid F (set_localtype idx tau sz L).
   Proof.
     induction idx.
@@ -709,6 +1270,7 @@ Section Utils.
   Lemma LocalCtxValid_set_localtype : forall {F L tau} idx sz,
       LocalCtxValid F L ->
       TypeValid F tau ->
+      SizeValid (size F) sz ->
       LocalCtxValid F (set_localtype idx tau sz L).
   Proof.
     intros.
@@ -731,6 +1293,43 @@ Section Utils.
     inversion H0; subst.
     constructor; auto.
     eapply H1; eauto.
+  Qed.
+
+  Lemma LocalCtxValid_SizeValid_provable : forall {idx F L t sz},
+      LocalCtxValid F L ->
+      nth_error L idx = Some (t,sz) ->
+      SizeValid (size F) sz.
+  Proof.
+    induction idx; destruct L; simpl in *; intros.
+    all:
+      try match goal with
+        | [ H : None = Some _ |- _ ] => inv H
+        | [ H : Some _ = Some _ |- _ ] => inv H
+        end.
+    - unfold LocalCtxValid in *.
+      match goal with
+      | [ H : Forall _ _ |- _ ] => inv H
+      end.
+      destructAll; auto.
+    - eapply IHidx; [ | eauto ].
+      unfold LocalCtxValid in *.
+      match goal with
+      | [ H : Forall _ _ |- _ ] => inv H
+      end.
+      auto.
+  Qed.
+
+  Lemma LocalCtxValid_SizeValid : forall {F L t sz},
+      LocalCtxValid F L ->
+      List.In (t, sz) L ->
+      SizeValid (size F) sz.
+  Proof.
+    intros.
+    match goal with
+    | [ H : List.In _ _ |- _ ] => apply In_nth_error in H
+    end.
+    destructAll.
+    eapply LocalCtxValid_SizeValid_provable; eauto.
   Qed.
   
   Lemma HasTypeInstruction_TypeAndLocalValid_provable : forall S C F L es tf L',
@@ -794,24 +1393,44 @@ Section Utils.
       split; auto.
       split; auto.
       apply LocalCtxValid_set_localtype; auto.
+      eapply LocalCtxValid_SizeValid_provable; eauto.
     - split; auto.
       unfold EmptyRes in *.
       invert_arrow_eq.
       split; auto.
       split; auto.
       apply LocalCtxValid_set_localtype; auto.
+      eapply LocalCtxValid_SizeValid_provable; eauto.
     - split; auto.
       split; auto.
       split; auto.
       apply LocalCtxValid_set_localtype; auto.
+      eapply LocalCtxValid_SizeValid_provable; eauto.
+    - split; auto.
+      split; auto.
+      split; auto.
+      constructor; auto.
+      eapply TypeValid_sub; eauto.
+      apply Function_Ctx_sub_Empty.
     - split; auto.
       split.
-      { apply Forall_app; split; auto. }
+      { constructor; auto.
+        eapply TypeValid_sub; eauto.
+        apply Function_Ctx_sub_Empty. }
       split; auto.
+    - split; auto.
+      split; auto.
+      split; auto.
+      constructor; auto.
+      eapply TypeValid_sub; eauto.
+      apply Function_Ctx_sub_Empty.
+    - split; auto.
+      split; auto.
+      apply Forall_app; split; auto.
     - split; auto.
       split.
       { match goal with
-        | [ H : TypeValid _ _ |- _ ] => inversion H; subst
+        | [ H : TypeValid _ _ |- _ ] => inv H
         end.
         auto. }
       split; auto.
@@ -819,7 +1438,7 @@ Section Utils.
       split; auto.
       split; auto.
       match goal with
-      | [ H : TypeValid _ _ |- _ ] => inversion H; subst
+      | [ H : TypeValid _ _ |- _ ] => inv H
       end.
       auto.
     - split; auto.
@@ -832,20 +1451,19 @@ Section Utils.
       end.
       constructor; auto.
     - split; auto.
-      split.
-      { constructor; auto.
-        match goal with
-        | [ H : TypeValid _ (QualT (CapT _ _ _) _) |- _ ] =>
-          inversion H; subst
-        end.
-        constructor; auto. }
       split; auto.
+      constructor; auto.
+      match goal with
+      | [ H : TypeValid _ (QualT (CapT _ _ _) _) |- _ ] =>
+        inversion H; subst
+      end.
+      constructor; auto.
     - repeat split; auto.
+      constructor; auto.
       match goal with
       | [ H : TypeValid _ (QualT (RefT _ _ _) _) |- _ ] =>
         inversion H; subst
       end.
-      constructor; auto.
       constructor; auto.
     - split; auto.
       split; auto.
@@ -892,8 +1510,9 @@ Section Utils.
              | [ H : forall _ _, _ -> _ |- _ ] =>
                specialize (H _ _ eq_refl)
              end.
-      destructAll.
-      auto.
+      do 3 ltac:(split; auto).
+      constructor; auto.
+      apply TypeValid_empty_ctx; auto.
     - repeat match goal with
              | [ H : forall _ _, _ -> _ |- _ ] =>
                specialize (H _ _ eq_refl)
@@ -908,17 +1527,33 @@ Section Utils.
                specialize (H _ _ eq_refl)
              end.
       destructAll.
-      split; auto.
-      unfold LocalCtxValid in *.
-      eapply LCEffEqual_Forall; eauto.
+      split; [ | split; [ | split ] ].
+      1,4: unfold LocalCtxValid in *.
+      1-2: eapply Forall_impl; eauto.
+      1-2: intros.
+      1-2: destruct_prs.
+      1-2: split.
+      1-4: destructAll.
+      1-4: try eapply TypeValid_Function_Ctx; eauto.
+      1-10: destruct F; subst; simpl in *; auto.
+      1-2: apply Forall_app.
+      1-2: split; auto.
+      1-2: eapply Forall_impl; [ | eauto ].
+      1-2: intros.
+      1-2: eapply TypeValid_Function_Ctx; eauto.
+      1-8: destruct F; subst; simpl in *; auto.
     - repeat match goal with
              | [ H : forall _ _, _ -> _ |- _ ] =>
                specialize (H _ _ eq_refl)
              end.
       destructAll.
       repeat split; auto.
-      unfold LocalCtxValid in *.
-      eapply LCEffEqual_Forall; eauto.
+    - repeat match goal with
+             | [ H : forall _ _, _ -> _ |- _ ] =>
+               specialize (H _ _ eq_refl)
+             end.
+      destructAll.
+      repeat split; auto.
   Qed.
 
   Lemma HasTypeInstruction_TypeAndLocalValid : forall {S C F L es tau1 tau2 L'},
@@ -944,16 +1579,6 @@ Section Utils.
     end;
     simpl in *; destructAll.
 
-  Lemma LocalCtxValid_LCEffEqual : forall {F C L L'},
-      LocalCtxValid F L ->
-      LCEffEqual C L L' ->
-      LocalCtxValid F L'.
-  Proof.
-    unfold LocalCtxValid.
-    intros.
-    eapply LCEffEqual_Forall; eauto.
-  Qed.
-
   Lemma LocalCtxValid_Function_Ctx : forall {F F' L},
       LocalCtxValid F L ->
       qual F = qual F' ->
@@ -967,12 +1592,22 @@ Section Utils.
     rewrite Forall_forall.
     intros.
     destruct_prs.
-    eapply TypeValid_Function_Ctx; eauto.
-    match goal with
-    | [ H : Forall _ ?L, H' : List.In _ ?L |- _ ] =>
-      rewrite Forall_forall in H; specialize (H _ H')
-    end.
-    simpl in *; auto.
+    split.
+    - eapply TypeValid_Function_Ctx; eauto.
+      match goal with
+      | [ H : Forall _ ?L, H' : List.In _ ?L |- _ ] =>
+        rewrite Forall_forall in H; specialize (H _ H')
+      end.
+      simpl in *; destructAll; auto.
+    - match goal with
+      | [ H : Forall _ ?L, H' : List.In _ ?L |- _ ] =>
+        rewrite Forall_forall in H; specialize (H _ H')
+      end.
+      simpl in *; destructAll.
+      match goal with
+      | [ H : ?A = ?B |- SizeValid ?B _ ] =>
+          rewrite <-H; auto
+      end.
   Qed.
 
   Lemma Forall_TypeValid_Function_Ctx : forall {F F' taus},
@@ -1005,6 +1640,8 @@ Section Utils.
     HasTypeInstruction S M F L [] (Arrow t1 t2) L' ->
     t1 = t2 /\
     LCEffEqual (size F) L L' /\
+    LocalCtxValid F L /\
+    LocalCtxValid F L' /\
     M.is_empty (LinTyp S) = true.
   Proof.
     assert (Heq : @nil Instruction = []) by reflexivity.
@@ -1019,6 +1656,8 @@ Section Utils.
     - subst. inv Heq1. edestruct IHHtyp; eauto. subst.
       destructAll. repeat split; eauto.
       destruct F; subst; simpl in *; auto.
+      all: eapply LocalCtxValid_Function_Ctx; eauto.
+      all: destruct F; subst; simpl in *; auto.
     - solve_lceff_subgoals ltac:(0).
     - solve_lceff_subgoals ltac:(0).
   Qed.
@@ -1027,22 +1666,11 @@ Section Utils.
     M.is_empty (LinTyp S) = true ->
     LocalCtxValid F L ->
     Forall (TypeValid F) ts ->
+    QualValid (qual F) (get_hd (linear F)) ->
     HasTypeInstruction S M F L [] (Arrow ts ts) L.
   Proof.
-    intros Hs Hlcv Hts.
-    rewrite (app_nil_end ts).
-    eapply FrameTyp.
-    reflexivity.
-    eapply Forall_trivial.
-    intros [? q]. now eapply QualLeq_Top.
-    now eapply QualLeq_Top.
-
-    eapply EmptyTyp; auto.
-    
-    unfold LocalCtxValid in *.
-    solve_trivial_tlv_subgoal F.
-    
-    auto.
+    intros.
+    eapply EmptyTyp; eauto.
   Qed.
 
   Lemma HasTypeInstruction_FirstLocalValid : forall {S C F L es tau1 tau2 L'},
@@ -1079,6 +1707,20 @@ Section Utils.
     intros.
     specialize (HasTypeInstruction_TypeAndLocalValid H).
     intros; destructAll; auto.
+  Qed.
+
+  Lemma HasTypeInstruction_QualValid : forall {S C F L es ts L'},
+      HasTypeInstruction S C F L es ts L' ->
+      QualValid (qual F) (get_hd (linear F)).
+  Proof.
+    apply
+      (HasTypeInstruction_mind'
+         (fun S C F L es tf L' =>
+            QualValid (qual F) (get_hd (linear F)))
+         (fun S cl ft => True)
+         (fun S C f ex ft => True)
+         (fun S maybe_ret i locvis locsz es taus => True)).
+    all: auto.
   Qed.
 
   (** Composition typing lemmas *)
@@ -1137,6 +1779,9 @@ Section Utils.
       constructor; auto.
     - apply Forall_app.
       split; auto.
+    - constructor; auto.
+      eapply TypeValid_sub; eauto.
+      apply Function_Ctx_sub_Empty.
     - apply Forall_app.
       split; auto.
     - match goal with
@@ -1211,6 +1856,8 @@ Section Utils.
       ts2 = ts ++ ts2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F' := update_linear_ctx (set_hd qf (linear F)) F in
 
       HasTypeInstruction S1 M F' L1 es (Arrow ts1' ts3) L3 /\
@@ -1232,10 +1879,12 @@ Section Utils.
       try match goal with
           | [ H : context[_ = I] |- _ ] =>
             exists []; do 5 eexists; exists (empty_LinTyp S), S
-          end.
+        end.
     all: repeat ltac:(split; [ reflexivity | ]).
     all: try ltac:(split; [ constructor | ]).
     all: try ltac:(split; [ eapply QualLeq_Refl | ]).
+    all: try ltac:(split; auto).
+    all: try ltac:(split; auto).
     all: simpl in *.
     all:
       try match goal with
@@ -1272,6 +1921,9 @@ Section Utils.
     - solve_itv_subgoal_strong.
     - solve_itv_subgoal_strong.
     - solve_itv_subgoal_strong.
+    - constructor; auto.
+      eapply TypeValid_sub; eauto.
+      apply Function_Ctx_sub_Empty.
     - match goal with
       | [ H : TypeValid _ (QualT (ProdT _) _) |- _ ] =>
         inversion H; subst; auto
@@ -1291,12 +1943,23 @@ Section Utils.
       | [ H : Forall _ ?L, H' : List.In _ ?L |- _ ] =>
         rewrite Forall_forall in H; specialize (H _ H'); auto
       end.
-
+      
     - eapply app_eq_nil in Heq. destructAll. congruence.
 
-    - inv Heq'. eapply app_inj_tail in Heq. destructAll.
+    - inv Heq'.
+      eapply app_inj_tail in Heq.
+      destructAll.
       exists []; do 7 eexists; do 2 split; [ reflexivity | ]; split.
-      now constructor. split; [ now eapply QualLeq_Refl | ].
+      now constructor.
+      split; [ now eapply QualLeq_Refl | ].
+      split.
+      {
+        eapply HasTypeInstruction_QualValid; eauto.
+      }
+      split.
+      {
+        eapply HasTypeInstruction_QualValid; eauto.
+      }
       rewrite set_get_hd. destruct F; simpl in *. eauto.
 
     - inv Heq'.
@@ -1311,13 +1974,18 @@ Section Utils.
       eapply Forall_app. split. 2:{ eassumption. }
 
       prepare_Forall.
-      eapply QualLeq_Trans; [ eassumption | ].
-      rewrite get_set_hd in *; eassumption.
+      {
+        eapply QualLeq_Trans; [ eassumption | ].
+        rewrite get_set_hd in *; eassumption.
+      }
 
       split. eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
-      rewrite set_set_hd in *. split; eauto. split; eauto.
+      rewrite set_set_hd in *. split. auto.
+      split; eauto.
+      split; try eassumption.
+      split; try eassumption.
       split; try eassumption.
       apply Forall_app; split; auto.
       eapply Forall_TypeValid_Function_Ctx; eauto.
@@ -1330,9 +1998,13 @@ Section Utils.
       simpl in *; destructAll.
       do 8 eexists.
       do 4 ltac:(split; eauto).
+      split; auto.
+      split; auto.
       split; [ | split; eauto ].
       eapply ChangeBegLocalTyp; eauto.
-      destruct F; subst; simpl in *; auto.
+      -- eapply LocalCtxValid_Function_Ctx; eauto.
+         all: destruct F; subst; simpl in *; auto.
+      -- destruct F; subst; simpl in *; auto.
     - specialize (IHHtyp _ _ _ _ eq_refl eq_refl).
       destructAll.
       match goal with
@@ -1342,9 +2014,13 @@ Section Utils.
       simpl in *; destructAll.
       do 8 eexists.
       do 4 ltac:(split; eauto).
+      split; auto.
+      split; auto.
       split; [ eauto | split; eauto ].
       eapply ChangeEndLocalTyp; eauto.
-      destruct F; subst; simpl in *; auto.
+      -- eapply LocalCtxValid_Function_Ctx; eauto.
+         all: destruct F; subst; simpl in *; auto.
+      -- destruct F; subst; simpl in *; auto.
   Qed.
 
   Corollary composition_typing_double S M F L1 e1 e2 ts1 ts2 L2 :
@@ -1368,6 +2044,8 @@ Section Utils.
       ts2 = ts ++ ts2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F' := update_linear_ctx (set_hd qf (linear F)) F in
       HasTypeInstruction S1 M F' L1 [e1] (Arrow ts1' ts3) L3 /\
       HasTypeInstruction S2 M F' L3 [e2] (Arrow ts3 ts2') L2 /\
@@ -1378,6 +2056,16 @@ Section Utils.
     eapply composition_typing_single_strong; eauto.
   Qed.
 
+  Lemma HasTypeInstruction_QualValid_usable : forall {S C F L es ts L' qctx q},
+      HasTypeInstruction S C F L es ts L' ->
+      qctx = qual F ->
+      q = get_hd (linear F) ->
+      QualValid qctx q.
+  Proof.
+    intros; subst.
+    eapply HasTypeInstruction_QualValid; eauto.
+  Qed.
+
   Lemma composition_typing S M F L1 es es' ts1 ts2 L2 :
     HasTypeInstruction S M F L1 (es ++ es') (Arrow ts1 ts2) L2 ->
     exists ts ts1' ts2' ts3 L3 qf S1 S2,
@@ -1385,6 +2073,8 @@ Section Utils.
       ts2 = ts ++ ts2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F' := update_linear_ctx (set_hd qf (linear F)) F in
       HasTypeInstruction S1 M F' L1 es (Arrow ts1' ts3) L3 /\
       HasTypeInstruction S2 M F' L3 es' (Arrow ts3 ts2') L2 /\
@@ -1398,12 +2088,21 @@ Section Utils.
       simpl in *. exists []; do 7 eexists; do 2 split; [ reflexivity | ]; split.
       rewrite app_nil_r in Htyp.
       now constructor. split. eapply QualLeq_Refl.
-      split. rewrite app_nil_r in *. destruct F; simpl in *.
+      split.
+      {
+        eapply HasTypeInstruction_QualValid; eauto.
+      }
+      split.
+      {
+        eapply HasTypeInstruction_QualValid; eauto.
+      }
+      split.
+      rewrite app_nil_r in *. destruct F; simpl in *.
       rewrite set_get_hd.  eassumption.
 
       split.
       eapply HasTypeInstruction_empty_list.
-      4:{ split; auto; eapply SplitStoreTypings_EmptyHeapTyping_r. }
+      5:{ split; auto; eapply SplitStoreTypings_EmptyHeapTyping_r. }
       -- destruct S; reflexivity.
       -- eapply LocalCtxValid_Function_Ctx.
          1:{ eapply HasTypeInstruction_SecondLocalValid; eauto. }
@@ -1411,6 +2110,9 @@ Section Utils.
       -- eapply Forall_TypeValid_Function_Ctx.
          1:{ eapply HasTypeInstruction_OutputTypesValid; eauto. }
          all: destruct F; subst; simpl in *; auto.
+      -- eapply HasTypeInstruction_QualValid_usable; eauto.
+         all: destruct F; simpl; auto.
+         rewrite get_set_hd; auto.
     - intros e es IH S M F L1 es_ ts1 ts2 L2 Htyp.
       simpl in *. rewrite app_assoc in Htyp.
       edestruct composition_typing_single_strong. eassumption. destructAll.
@@ -1418,23 +2120,27 @@ Section Utils.
       eassumption. destructAll.
       simpl in *. rewrite set_set_hd in *.
 
-      edestruct SplitStoreTypings_assoc. eapply H11. eassumption. destructAll.
+      edestruct SplitStoreTypings_assoc. eauto. eassumption. destructAll.
 
-      do 8 eexists. split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]].
+      do 8 eexists. split; [ | split; [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]]]].
 
-      6:{ eapply ConsTyp; [ | | eassumption  ].
+      8:{ eapply ConsTyp; [ | | eassumption  ].
           2:{ eapply FrameTyp. reflexivity.
               simpl. eassumption. simpl. eassumption.
               simpl. rewrite set_set_hd. eassumption.
+              simpl. auto.
+              simpl. auto.
               
               eapply proj1.
               eapply Forall_app.
               eapply HasTypeInstruction_InputTypesValid; eauto. }
           eassumption. }
 
-      5:{ eapply FrameTyp. reflexivity.
+      7:{ eapply FrameTyp. reflexivity.
           simpl. eassumption. simpl. eassumption.
           simpl. rewrite set_set_hd. eassumption.
+          simpl. auto.
+          simpl. auto.
               
           eapply proj1.
           eapply Forall_app.
@@ -1442,7 +2148,8 @@ Section Utils.
 
       reflexivity. reflexivity.
       eassumption. eassumption.
-      split; eassumption.
+      eassumption. eassumption.
+      auto.
   Qed.
 
   Lemma HasTypeInstruction_app S S1 S2 M F es1 es2 L1 L2 L3 t1 t2 t3 :
@@ -1473,7 +2180,11 @@ Section Utils.
 
       destruct F. simpl in *. destructAll.
 
-      edestruct SplitStoreTypings_assoc. eapply SplitStoreTypings_comm. eapply H3.
+      edestruct SplitStoreTypings_assoc. eapply SplitStoreTypings_comm.
+      match goal with
+      | [ H : SplitStoreTypings _ ?A, H' : SplitStoreTypings [_; ?A] _ |- _ ] =>
+          exact H
+      end.
       eapply SplitStoreTypings_comm. eassumption.
       destructAll.
 
@@ -1481,6 +2192,8 @@ Section Utils.
 
       3:{ eapply FrameTyp. reflexivity. eassumption. eassumption.
           simpl in *. eassumption.
+          simpl. auto.
+          simpl. auto.
           eapply proj1.
           eapply Forall_app.
           eapply HasTypeInstruction_OutputTypesValid; eauto. }
@@ -1488,6 +2201,8 @@ Section Utils.
       2:{ eapply IH. eassumption.
           eapply FrameTyp. reflexivity. eassumption. eassumption.
           simpl in *. eassumption.
+          simpl. auto.
+          simpl. auto.
 
           eapply proj1.
           eapply Forall_app.
@@ -1647,10 +2362,11 @@ Section Utils.
     SplitStoreTypings Ss S ->
     Forall3 (fun S v t => HasTypeValue S F v t) Ss (to_values vs H) taus ->
     LocalCtxValid F L ->
+    QualValid (qual F) (get_hd (linear F)) ->
     HasTypeInstruction S M F L vs (Arrow [] taus) L.
   Proof.
     revert Ss S M F L taus H. eapply rev_ind with (l := vs).
-    - intros Ss S M F L taus Hs H Hall. simpl in Hall. inv Hall; eauto.
+    - intros Ss S M F L taus Hs H Hall Hvalid Hvalid'. simpl in Hall. inv Hall; eauto.
       inv H. inv H1. simpl in *.
       eapply EmptyTyp.
 
@@ -1668,8 +2384,11 @@ Section Utils.
       edestruct (Hn x). subst.
       edestruct H1. eexists. eapply PositiveMap.find_1.
       eassumption.
+      auto.
+      constructor.
+      auto.
 
-    - intros v vs' IH Ss' S M F L taus Hv Hs Hall Hlcv.
+    - intros v vs' IH Ss' S M F L taus Hv Hs Hall Hlcv Hvalid'.
       assert (H1 := Hv).
       eapply Forall_app in H1. destructAll.
       rewrite to_values_app with (H1 := H) (H2 := H0) in Hall.
@@ -1685,7 +2404,7 @@ Section Utils.
 
       eapply ConsTyp. eassumption.
 
-      eapply IH; [ | eassumption | eassumption ]. eassumption.
+      eapply IH; [ | eassumption | eassumption | eassumption ]. eassumption.
 
 
       replace x1 with (x1 ++ []) at 1 by (rewrite app_nil_r; reflexivity).
@@ -1694,7 +2413,8 @@ Section Utils.
 
       reflexivity.
 
-      eapply Forall_trivial. intros [? ?]. now eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      now eapply QualLeq_Top.
       now eapply QualLeq_Top.
 
       eapply ValTyp.
@@ -1705,6 +2425,11 @@ Section Utils.
 
       -- eapply LocalCtxValid_Function_Ctx; eauto.
          all: destruct F; subst; simpl in *; auto.
+      -- destruct F; simpl in *.
+         rewrite get_set_hd.
+         econstructor; eauto.
+      -- auto.
+      -- econstructor; eauto.
       -- rewrite Forall_forall.
          intros.
          match goal with
@@ -1817,6 +2542,8 @@ Section Utils.
     exists t qf,
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t1 /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       t1 ++ [t] = t2 /\
       HasTypeValue S (update_linear_ctx (set_hd qf (linear F)) F) v t /\
       LCEffEqual (size F) L L'.
@@ -1827,7 +2554,7 @@ Section Utils.
     intros arr i Heq Heq' Htyp.
     revert t1 t2 Heq'. induction Htyp; intros t1 t2 Heq1; try now inv Heq.
     - inv Heq1; eauto. inv Heq. do 2 eexists. split. now constructor.
-      split. eapply QualLeq_Refl. split. reflexivity.
+      split. eapply QualLeq_Refl. split. auto. split. auto. split. reflexivity.
       split. rewrite set_get_hd. destruct F; eassumption.
       apply LCEffEqual_refl.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
@@ -1847,14 +2574,22 @@ Section Utils.
 
       eapply Forall_app; split; [| eassumption ].
       prepare_Forall.
-      eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *.
+          eassumption.
+      }
 
       rewrite get_set_hd in *.
       split. rewrite set_set_hd in *.
 
       eapply QualLeq_Trans; eassumption.
 
+      split.
+      auto.
+      split.
+      auto.
       split.
       rewrite app_assoc. reflexivity. split; auto.
       eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity.
@@ -1869,7 +2604,8 @@ Section Utils.
 
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t1 /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
-
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       SplitStoreTypings Ss S /\
       Forall3 (fun S v t => HasTypeValue S F v t) Ss (to_values vs H) t /\
       LCEffEqual (size F) L L'.
@@ -1882,14 +2618,22 @@ Section Utils.
       try now (exfalso; inv H; match goal with [ H : value _ |- _ ] => inv H end).
     - inv Heq1. destruct t. do 3 eexists. split. reflexivity.
       split. constructor; eauto. split.
-      eapply QualLeq_Top. split.
+      eapply QualLeq_Refl. split. auto. split. auto. split.
       eapply SplitStoreTypings_Singl.
       split; eauto. constructor; eauto. constructor.
       apply LCEffEqual_refl.
-    - inv Heq1. do 3 eexists. split. reflexivity.
-      split. now constructor.
-      split. eapply QualLeq_Top. split.
-      eapply SplitStoreTypings_Emp. eassumption.
+    - inv Heq1. do 3 eexists. split. rewrite app_nil_r. reflexivity.
+      split.
+      {
+        rewrite Forall_forall.
+        intros.
+        destyp.
+        eapply QualLeq_Top.
+      }
+      split. eapply QualLeq_Top.
+      split. auto.
+      split. econstructor; eauto.
+      split. eapply SplitStoreTypings_Emp. eassumption.
       split. now constructor.
       apply LCEffEqual_refl.
     - assert (H1 := H). eapply Forall_app in H1. destructAll. inv Heq1.
@@ -1902,6 +2646,8 @@ Section Utils.
       eassumption.
       eassumption.
 
+      split; auto.
+      split. auto.
       split.
       2:{ rewrite to_values_app with (H1 := H1) (H2 := H2).
 
@@ -1920,14 +2666,19 @@ Section Utils.
       eapply Forall_app. split; [ | eassumption ].
 
       prepare_Forall.
-      eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       split.
 
       destruct F; simpl in *. rewrite get_set_hd in *.
       now eapply QualLeq_Trans; eauto.
 
+      split. auto.
+      split. destruct F; simpl in *; auto.
       split; eauto. split.
       eapply Forall3_monotonic; [| eassumption ].
       simpl. intros S' v1 tau Hyp.
@@ -1983,6 +2734,75 @@ Section Utils.
           eapply IHForall2; eauto.
     Qed.
 
+  Lemma set_localtype_LocalCtxValid : forall {n F L t sz taunew},
+      LocalCtxValid F L ->
+      nth_error L n = Some (t, sz) ->
+      TypeValid F taunew ->
+      LocalCtxValid F (set_localtype n taunew sz L).
+  Proof.
+    induction n.
+    - intros.
+      destruct L; simpl in *.
+      all:
+        match goal with
+        | [ H : _ = Some _ |- _ ] => inv H
+        end.
+      unfold set_localtype.
+      simpl.
+      match goal with
+      | [ H : LocalCtxValid _ _ |- _ ] => inv H
+      end.
+      destructAll.
+      constructor; auto.
+    - intros.
+      destruct L; simpl in *.
+      all:
+        match goal with
+        | [ H : _ = Some _ |- _ ] => inv H
+        end.
+      unfold set_localtype.
+      simpl.
+      match goal with
+      | [ H : LocalCtxValid _ _ |- _ ] => inv H
+      end.
+      destruct_prs.
+      destructAll.
+      unfold LocalCtxValid in *.
+      constructor; eauto.
+  Qed.
+
+  Lemma new_localtype_TypeValid : forall {F L1 q x x1 x2 x3 n},
+      LocalCtxValid F L1 ->
+      (x1 = true -> x2 = QualT x q) ->
+      (x1 = false -> x2 = QualT Unit Unrestricted) ->
+      nth_error L1 n = Some (QualT x q, x3) ->
+      TypeValid F x2.
+  Proof.
+    intros.
+    match goal with
+    | [ H : nth_error _ _ = _ |- _ ] =>
+        apply nth_error_In in H
+    end.
+    unfold LocalCtxValid in *.
+    match goal with
+    | [ X : bool |- _ ] => destruct X
+    end.
+    all:
+      match goal with
+      | [ H : ?A = ?A -> _ |- _ ] => specialize (H eq_refl); subst
+      end.
+    - rewrite Forall_forall in *.
+      match goal with
+      | [ H : forall _, List.In _ _ -> _,
+          H' : List.In _ _ |- _ ] =>
+          specialize (H _ H')
+      end.
+      simpl in *.
+      destructAll; auto.
+    - econstructor; eauto.
+      econstructor; eauto.
+  Qed.  
+    
   Lemma Get_local_HasTypeInstruction S M F L t1 t2 L' n q :
     HasTypeInstruction S M F L [Get_local n q] (Arrow t1 t2) L' ->
     exists pt sz b taunew,
@@ -1993,7 +2813,8 @@ Section Utils.
       (b = false -> QualLeq (qual F) Linear q = Some true) /\
       (b = true -> taunew = QualT pt q) /\
       (b = false -> taunew = QualT Unit Unrestricted) /\
-      LCEffEqual (size F) (set_localtype n taunew sz L) L'.
+      LCEffEqual (size F) (set_localtype n taunew sz L) L' /\
+      LocalCtxValid F (set_localtype n taunew sz L).
   Proof.
     assert (Heq : [Get_local n q] = [Get_local n q]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2004,6 +2825,7 @@ Section Utils.
       split. reflexivity.
       repeat ltac:(split; eauto).
       apply LCEffEqual_refl.
+      eapply set_localtype_LocalCtxValid; eauto.
     - eapply elt_eq_unit in Heq. destructAll.
       eapply Empty_HasTypeInstruction in Htyp1.
       edestruct IHHtyp2. reflexivity. reflexivity. destructAll.
@@ -2014,19 +2836,61 @@ Section Utils.
          constructor; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply set_localtype_LCEffEqual; auto.
+      -- eapply set_localtype_LocalCtxValid; eauto.
+         eapply new_localtype_TypeValid; [ | eauto | eauto | eauto ].
+         eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       do 4 eexists. split.
       eassumption.
       split.
       rewrite app_assoc. reflexivity.
-      split; destruct F; eauto.
+      split; eauto.
+      split.
+      {
+        destruct F; simpl in *; eauto.
+      }
+      split.
+      {
+        destruct F; simpl in *; eauto.
+      }
+      split; eauto.
+      split; eauto.
+      split; destruct F; simpl in *; auto.
+      eapply LocalCtxValid_Function_Ctx; eauto.
     - start_lceff_subgoals.
       use_LCEffEqual_nth_error_left; intros; destructAll.
       do 4 eexists; repeat ltac:(split; eauto).
       eapply LCEffEqual_trans; eauto.
       apply LCEffEqual_sym.
       apply set_localtype_LCEffEqual; auto.
+      eapply set_localtype_LocalCtxValid; eauto.
+      eapply new_localtype_TypeValid; [ | eauto | eauto | eauto ].
+      eauto.
     - solve_lceff_subgoals ltac:(4).
+  Qed.
+
+  Lemma LocalCtxValid_set_localtype_imp_TypeValid : forall {i F L2 tpl x2 x1},
+      nth_error L2 i = Some tpl ->
+      LocalCtxValid F (set_localtype i x2 x1 L2) ->
+      TypeValid F x2.
+  Proof.
+    induction i.
+    all: intros.
+    all:
+      match goal with
+      | [ X : list _ |- _ ] => destruct X; simpl in *
+      end.
+    all:
+      match goal with
+      | [ H : _ = Some _ |- _ ] => inv H
+      end.
+    all: unfold set_localtype in *.
+    all: simpl in *.
+    all:
+      match goal with
+      | [ H : LocalCtxValid _ _ |- _ ] => inv H
+      end.
+    all: destructAll; eauto.
   Qed.
 
   Lemma Set_local_HasTypeInstruction S M F L t1 t2 L' i :
@@ -2038,7 +2902,9 @@ Section Utils.
       QualLeq (qual F) q Unrestricted = Some true /\
       sizeOfType (type F) tau = Some tausz /\
       SizeLeq (size F) tausz sz = Some true /\
-      LCEffEqual (size F) (set_localtype i tau sz L) L'.
+      SizeValid (size F) tausz /\
+      LCEffEqual (size F) (set_localtype i tau sz L) L' /\
+      LocalCtxValid F (set_localtype i tau sz L).
   Proof.
     assert (Heq : [Set_local i] = [Set_local i]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2048,7 +2914,8 @@ Section Utils.
     - inv Heq1; eauto. inv Heq. do 5 eexists. split. eassumption.
       split. reflexivity.
       repeat ltac:(split; eauto).
-      apply LCEffEqual_refl.
+      -- apply LCEffEqual_refl.
+      -- eapply set_localtype_LocalCtxValid; eauto.
     - eapply elt_eq_unit in Heq. destructAll.
       eapply Empty_HasTypeInstruction in Htyp1.
       edestruct IHHtyp2. reflexivity. reflexivity. destructAll.
@@ -2060,12 +2927,17 @@ Section Utils.
       -- eapply SizeLeq_Trans; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply set_localtype_LCEffEqual; auto.
+      -- eapply set_localtype_LocalCtxValid; eauto.
+         eapply LocalCtxValid_set_localtype_imp_TypeValid.
+         2: eauto.
+         eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       do 5 eexists. split.
       eassumption.
       split.
       rewrite app_assoc. reflexivity.
-      split; destruct F; eauto.
+      repeat split; destruct F; eauto.
+      eapply LocalCtxValid_Function_Ctx; eauto.
     - start_lceff_subgoals.
       use_LCEffEqual_nth_error_left; intros; destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
@@ -2073,6 +2945,10 @@ Section Utils.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_sym.
          apply set_localtype_LCEffEqual; auto.
+      -- eapply set_localtype_LocalCtxValid; eauto.
+         eapply LocalCtxValid_set_localtype_imp_TypeValid.
+         2: eauto.
+         eauto.
     - solve_lceff_subgoals ltac:(5).
   Qed.
 
@@ -2120,17 +2996,142 @@ Section Utils.
     - solve_lceff_subgoals ltac:(3).
   Qed.
 
+  Lemma NoCapsPretype_list_sub : forall {pt L L'},
+      list_sub L L' ->
+      NoCapsPretype L pt = true ->
+      NoCapsPretype L' pt = true.
+  Proof.
+    apply
+      (Pretype_ind'
+         (fun pt =>
+            forall L L',
+              list_sub L L' ->
+              NoCapsPretype L pt = true ->
+              NoCapsPretype L' pt = true)
+         (fun t =>
+            forall L L',
+              list_sub L L' ->
+              NoCapsTyp L t = true ->
+              NoCapsTyp L' t = true)
+         (fun _ => True)
+         (fun _ => True)
+         (fun _ => True)).
+    all: auto.
+
+    - intros.
+      simpl in *.
+      match goal with
+      | [ H : context[nth_error ?L ?V] |- _ ] =>
+        remember (nth_error L V) as obj;
+          revert H; generalize (eq_sym Heqobj); case obj; intros
+      end.
+      2:{
+        match goal with
+        | [ H : false = true |- _ ] => inversion H
+        end.
+      }
+      match goal with
+      | [ X : HeapableConstant |- _ ] => destruct X
+      end.
+      2:{
+        match goal with
+        | [ H : false = true |- _ ] => inversion H
+        end.
+      }
+      match goal with
+      | [ H : list_sub _ _, H' : nth_error _ _ = Some _ |- _ ] =>
+        specialize (list_sub_nth_error _ _ _ _ H H');
+          let H'' := fresh "H" in intro H''; rewrite H''
+      end.
+      auto.
+    - intros.
+      simpl in *.
+      rewrite forallb_forall in *.
+      rewrite Forall_forall in *.
+      intros.
+      repeat match goal with
+             | [ H : forall _, _, H' : In _ _ |- _ ] =>
+               specialize (H _ H')
+             end.
+      eauto.
+    - intros.
+      simpl in *.
+      match goal with
+      | [ H : forall _ _, _ |- _ ] =>
+        eapply H; [ | eauto ]
+      end.
+      constructor; auto.
+  Qed.
+
+  Lemma NoCapsPretype_empty_ctx pt L :
+    NoCapsPretype [] pt = true ->
+    NoCapsPretype L pt = true.
+  Proof.
+    intros.
+    eapply NoCapsPretype_list_sub; eauto.
+    constructor.
+  Qed.
+
+  Lemma NoCapsType_list_sub t L L' :
+    list_sub L L' ->
+    NoCapsTyp L t = true ->
+    NoCapsTyp L' t = true.
+  Proof.
+    intros.
+    destruct t; simpl in *.
+    eapply NoCapsPretype_list_sub; eauto.
+  Qed.
+
+  Lemma NoCapsType_empty_ctx t L :
+    NoCapsTyp [] t = true ->
+    NoCapsTyp L t = true.
+  Proof.
+    intros.
+    destruct t; simpl in *.
+    apply NoCapsPretype_empty_ctx; auto.
+  Qed.
+
+  Lemma NoCapsHeapType_list_sub : forall {L L' ht},
+      list_sub L L' ->
+      NoCapsHeapType L ht = true ->
+      NoCapsHeapType L' ht = true.
+  Proof.
+    intros.
+    destruct ht; simpl in *.
+    - rewrite forallb_forall in *.
+      intros.
+      eapply NoCapsType_list_sub; eauto.
+    - rewrite forallb_forall in *.
+      intros.
+      eapply NoCapsType_list_sub; eauto.
+    - eapply NoCapsType_list_sub; eauto.
+    - eapply NoCapsType_list_sub; eauto.
+      constructor.
+      auto.
+  Qed.
+
+  Lemma NoCapsHeapType_empty_ctx : forall {L ht},
+    NoCapsHeapType [] ht = true ->
+    NoCapsHeapType L ht = true.
+  Proof.
+    intros.
+    eapply NoCapsHeapType_list_sub; eauto.
+    constructor.
+  Qed.
+
   Lemma Malloc_HasTypeInstruction S M F L hv q t1 t2 L' sz:
     HasTypeInstruction S M F L [Malloc sz hv q] (Arrow t1 t2) L' ->
     exists ht qf (H : size_closed sz),
       t2 = t1 ++ [QualT (ExLoc (QualT (RefT W (LocV 0) (debruijn.subst_ext (Kind:=subst.Kind) (debruijn.weak subst.SLoc) ht)) q)) q] /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t1 /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       NoCapsHeapType (heapable F) ht = true /\
       QualValid (qual F) q /\
       RoomForStrongUpdates (N.of_nat (to_size sz H)) ht /\
       let F' := update_linear_ctx (set_hd qf (linear F)) F in
-      HasHeapType S F' hv ht /\
+      HasHeapType S empty_Function_Ctx hv ht /\
       LCEffEqual (size F) L L'.
   Proof.
     assert (Heq : [Malloc sz hv q] = [Malloc sz hv q]) by reflexivity.
@@ -2139,9 +3140,13 @@ Section Utils.
     intros arr i Heq Heq' Htyp.
     revert t1 t2 Heq'. induction Htyp; intros t1 t2 Heq1; try now inv Heq.
     - inv Heq1; eauto. inv Heq. do 3 eexists; repeat split. now constructor.
-      eapply QualLeq_Refl. eassumption. simpl. destruct F. simpl in *.
-      auto. eauto. rewrite set_get_hd. simpl.
-      destruct F; subst; simpl in *. assumption.
+      eapply QualLeq_Refl. auto. auto. apply NoCapsHeapType_empty_ctx; auto.
+      {
+        eapply QualValid_sub.
+        - apply Function_Ctx_sub_Empty.
+        - simpl; auto.
+      }
+      eauto. auto.
       apply LCEffEqual_refl.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll. inv Heq1. simpl.
@@ -2154,24 +3159,28 @@ Section Utils.
       destruct F; simpl in *.
       specialize (IHHtyp eq_refl _ _ eq_refl).
       destructAll.
-      do 3 eexists. split; [| split; [| split; [| split; [ | split ]]]].
+      do 3 eexists. split; [| split; [| split; [| split; [ | split; [ | split; [ | split ]]]]]].
       rewrite app_assoc. reflexivity.
 
       eapply Forall_app. split; [ | eassumption ].
 
       prepare_Forall.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *.
+          eassumption.
+      }
+      
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
-      eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
-
+      auto.
+      auto.
       eassumption.
       eassumption.
 
       split; eauto.
-      split; eauto.
-      rewrite set_set_hd in *. eauto.
     - solve_lceff_subgoals ltac:(3).
     - solve_lceff_subgoals ltac:(3).
   Qed.
@@ -2282,8 +3291,218 @@ Theorem get_localtype_same_len_None l1 l2 n:
              eapply Forall2_length. eauto.
    Qed.
 
+  Lemma QualLeq_Bottom : forall C q, QualLeq C Unrestricted q = Some true.
+  Proof.
+    intros.
+    rewrite QualLeq_desc.
+    unfold ctx_imp_leq.
+    intros.
+    simpl; unfold le_qualconst.
+    destruct (interp_qual model q); auto.
+  Qed.
+
+  Lemma add_local_effects_app : forall {tl1 L tl2},
+      add_local_effects (add_local_effects L tl1) tl2 =
+      add_local_effects L (tl1 ++ tl2).
+  Proof.
+    induction tl1; simpl; auto.
+    intros.
+    destruct_prs.
+    remember (get_localtype n L) as obj.
+    generalize (eq_sym Heqobj).
+    case obj; intros.
+    - destruct_prs.
+      eauto.
+    - eauto.
+  Qed.
+
+  Lemma add_local_effects_app_lceff : forall {L1 L2 L3 C tl1 tl2},
+      LCEffEqual C (add_local_effects L1 tl1) L2 ->
+      LCEffEqual C (add_local_effects L2 tl2) L3 ->
+      LCEffEqual C (add_local_effects L1 (tl1 ++ tl2)) L3.
+  Proof.
+    intros.
+    rewrite <-add_local_effects_app.
+    eapply LCEffEqual_trans; [ | eauto ].
+    apply LCEffEqual_add_local_effects; auto.
+  Qed.
+
+  Lemma add_local_effects_empty : forall {tl},
+      add_local_effects [] tl = [].
+  Proof.
+    induction tl; intros; simpl in *; auto.
+    destruct_prs.
+    unfold get_localtype.
+    destruct n; simpl; auto.
+  Qed.
+
+  Lemma add_local_effects_cons_S : forall {t sz idx t' L tl},
+      add_local_effects ((t, sz) :: L) ((Datatypes.S idx, t') :: tl)
+      =
+      add_local_effects ((t, sz) :: add_local_effects L [(idx, t')]) tl.
+  Proof.
+    intros.
+    simpl.
+    remember (get_localtype idx L) as obj.
+    destruct obj; auto.
+    destruct_prs.
+    unfold set_localtype.
+    simpl; auto.
+  Qed.
+
+  Lemma add_local_effects_cons : forall {tl},
+    (exists t0 tl',
+       forall t sz L,
+         add_local_effects ((t, sz) :: L) tl
+         =
+         (t0, sz) :: (add_local_effects L tl'))
+    \/
+    (exists tl',
+       forall t sz L,
+         add_local_effects ((t, sz) :: L) tl
+         =
+         (t, sz) :: (add_local_effects L tl')).
+  Proof.
+    induction tl.
+    - right.
+      exists [].
+      intros; auto.
+    - inv IHtl.
+      -- destruct_prs.
+         destructAll.
+         match goal with
+         | [ X : nat |- _ ] => destruct X
+         end.
+         --- simpl.
+             unfold set_localtype.
+             simpl.
+             left.
+             do 2 eexists.
+             intros.
+             rewrite H; eauto.
+         --- left.
+             do 2 eexists.
+             intros.
+             rewrite add_local_effects_cons_S.
+             rewrite H.
+             rewrite add_local_effects_app.
+             eauto.
+      -- destruct_prs.
+         destructAll.
+         match goal with
+         | [ X : nat |- _ ] => destruct X
+         end.
+         --- simpl.
+             unfold set_localtype.
+             simpl.
+             left.
+             do 2 eexists.
+             intros.
+             rewrite H.
+             eauto.
+         --- right.
+             eexists.
+             intros.
+             rewrite add_local_effects_cons_S.
+             rewrite H.
+             rewrite add_local_effects_app.
+             eauto.
+  Qed.
+
+  Lemma LocalCtxValid_cons : forall {F t sz L},
+      LocalCtxValid F ((t,sz) :: L) <->
+      TypeValid F t /\ SizeValid (size F) sz /\ LocalCtxValid F L.
+  Proof.
+    intros.
+    constructor; intros.
+    - match goal with
+      | [ H : LocalCtxValid _ _ |- _ ] => inv H
+      end.
+      destructAll; auto.
+    - destructAll.
+      constructor; auto.
+  Qed.
+
+  Lemma LocalCtxValid_LCEffEqual_add_local_effects : forall {L tl F L'},
+      LocalCtxValid F L ->
+      LCEffEqual (size F) L L' ->
+      LocalCtxValid F (add_local_effects L' tl) ->
+      LocalCtxValid F (add_local_effects L tl).
+  Proof.
+    induction L.
+    all: intros; simpl in *; auto.
+    1:{
+      rewrite add_local_effects_empty.
+      constructor.
+    }
+    match goal with
+    | [ H : LCEffEqual _ _ _ |- _ ] => inv H
+    end.
+    destruct_prs.
+    destructAll.
+    match goal with
+    | [ H : SizeLeq ?SC _ _ = _,
+        H' : Forall2 _ ?L1 ?L2 |- _ ] =>
+        assert (LCEffEqual SC L1 L2); auto
+    end.
+    match goal with
+    | [ |- LocalCtxValid _ (add_local_effects _ ?TL) ] =>
+        specialize (@add_local_effects_cons TL)
+    end.
+    let H := fresh "H" in intro H; inv H; destructAll.
+    - match goal with
+      | [ H : context[add_local_effects ((?T, ?SZ) :: ?L)],
+          H' : forall _ _ _, _ |- _ ] =>
+          let H'' := fresh "H" in
+          generalize (H' T SZ L); intro H'';
+          rewrite H'' in H; rewrite LocalCtxValid_cons in H
+      end.
+      match goal with
+      | [ H' : forall _ _ _, _
+          |- context[add_local_effects ((?T, ?SZ) :: ?L)] ] =>
+          let H'' := fresh "H" in
+          generalize (H' T SZ L); intro H'';
+          rewrite H''; rewrite LocalCtxValid_cons
+      end.
+      match goal with
+      | [ H : LocalCtxValid _ (_ :: _) |- _ ] =>
+          rewrite LocalCtxValid_cons in H
+      end.
+      destructAll.
+      split; auto.
+      split; auto.
+      match goal with
+      | [ H : forall _ _ _, _ -> _ |- _ ] => eapply H; eauto
+      end.
+    - match goal with
+      | [ H : context[add_local_effects ((?T, ?SZ) :: ?L)],
+          H' : forall _ _ _, _ |- _ ] =>
+          let H'' := fresh "H" in
+          generalize (H' T SZ L); intro H'';
+          rewrite H'' in H; rewrite LocalCtxValid_cons in H
+      end.
+      match goal with
+      | [ H' : forall _ _ _, _
+          |- context[add_local_effects ((?T, ?SZ) :: ?L)] ] =>
+          let H'' := fresh "H" in
+          generalize (H' T SZ L); intro H'';
+          rewrite H''; rewrite LocalCtxValid_cons
+      end.
+      match goal with
+      | [ H : LocalCtxValid _ (_ :: _) |- _ ] =>
+          rewrite LocalCtxValid_cons in H
+      end.
+      destructAll.
+      split; auto.
+      split; auto.
+      match goal with
+      | [ H : forall _ _ _, _ -> _ |- _ ] => eapply H; eauto
+      end.
+  Qed.
+
   Lemma Br_HasTypeInstruction S M F L t1 t2 L' i :
     HasTypeInstruction S M F L [Br i] (Arrow t1 t2) L' ->
+    qual F = [] ->
     exists t1' taus1 taus1' L1 qf tl,
       M.is_empty (LinTyp S) = true /\
       nth_error (label F) i = Some (t1', L1) /\
@@ -2291,16 +3510,19 @@ Theorem get_localtype_same_len_None l1 l2 n:
           j <= i ->
           exists q : Qual,
             nth_error_plist (linear F) j = Some q /\
+            QualValid (qual F) q /\
             QualLeq (qual F) q Unrestricted = Some true) /\
       t1 = taus1 ++ taus1' ++ t1' /\
 
       Forall (fun taus => TypQualLeq F taus Unrestricted = Some true) taus1' /\
       QualLeq (qual F) qf Unrestricted = Some true /\
-
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) taus1  /\
-      QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       LCEffEqual (size F) L L1 /\
-      LCEffEqual (size F) (add_local_effects L tl) L'.
+      LCEffEqual (size F) (add_local_effects L tl) L' /\
+      LocalCtxValid F L1 /\
+      LocalCtxValid F (add_local_effects L tl).
   Proof.
     assert (Heq : [Br i] = [Br i]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2310,13 +3532,14 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - inv Heq1; inv Heq. do 6 eexists; split. eassumption.
       split. eassumption. split. eassumption. split. rewrite app_assoc, app_nil_l. reflexivity.
       split. eassumption. split. eapply QualLeq_Refl.
-      split; eauto.
-      split; eauto.
-      specialize (H2 0 ltac:(lia)). destructAll.
-      rewrite nth_error_plist_hd_Zero in H2. inv H2. eassumption.
-      split; apply LCEffEqual_refl.
+      split. constructor.
+      split; auto.
+      split; [ econstructor; eauto | ].
+      repeat split; eauto.
+      all: apply LCEffEqual_refl.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
-      edestruct IHHtyp2. reflexivity. reflexivity. destructAll.
+      intro.
+      edestruct IHHtyp2. reflexivity. reflexivity. auto. destructAll.
       inv Heq1.
       do 6 eexists. split.
 
@@ -2325,10 +3548,12 @@ Theorem get_localtype_same_len_None l1 l2 n:
       -- eapply LCEffEqual_trans; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects; auto.
-    - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
-      destruct F; simpl in *.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+    - subst. inv Heq1. intro. edestruct IHHtyp; eauto. destructAll.
+      all: destruct F; simpl in *; auto.
+      destructAll.
 
-      do 6 eexists. split; [| split; [| split; [| split; [| split; [| split; [| split; [| split]]]]]]].
+      do 6 eexists. split; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [|split; [ | split; [ | split; [ | split ]]]]]]]]]]].
 
       + eassumption.
       + eassumption.
@@ -2346,8 +3571,13 @@ Theorem get_localtype_same_len_None l1 l2 n:
           match goal with
           | [ H : Some _ = Some _ |- _ ] => inversion H; subst
           end.
-          eapply QualLeq_Trans; eassumption.
-
+          match goal with
+          | [ |- _ /\ ?B ] =>
+              let H := fresh "H" in
+              assert (H : B); [ | rewrite (QualLeq_Bottom_Const _ H) ]
+          end.
+          { eapply QualLeq_Trans; eassumption. }
+          split; [ econstructor; eauto | apply QualLeq_Refl ].
         * match goal with
           | [ H : nth_error_plist _ (Datatypes.S _) = _ |- _ ] =>
             rewrite nth_error_plist_hd_Succ in H
@@ -2360,19 +3590,47 @@ Theorem get_localtype_same_len_None l1 l2 n:
       + eassumption.
       + eapply Forall_app. split; [ | eassumption ].
 
-        prepare_Forall. eapply QualLeq_Trans. eassumption.
-        rewrite get_set_hd in *. eassumption.
-      + eapply QualLeq_Trans. eassumption.
-        rewrite get_set_hd in *. eassumption.
+        prepare_Forall.
+        eapply QualLeq_Trans.
+        +++ eassumption.
+        +++ match goal with
+            | [ H : forall _, _ <= _ -> _ |- _ ] =>
+                specialize (H 0 ltac:(lia))
+            end.
+            destructAll.
+            match goal with
+            | [ H : nth_error_plist _ 0 = Some _ |- _ ] =>
+                rewrite nth_error_plist_hd_Zero in H; inv H
+            end.
+            rewrite get_set_hd in *.
+            eapply QualLeq_Trans; eauto.
+            apply QualLeq_Bottom.
+      + auto.
+      + auto.
       + eauto.
+      + eauto.
+      + eapply LocalCtxValid_Function_Ctx; eauto.
+      + eapply LocalCtxValid_Function_Ctx; eauto.
     - start_lceff_subgoals.
+      intro.
+      match goal with
+      | [ H : ?A, H' : ?A -> _ |- _ ] => specialize (H' H)
+      end.
+      destructAll.
       do 6 eexists; repeat ltac:(split; eauto).
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_sym; auto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects.
          apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         apply LCEffEqual_sym; auto.
     - start_lceff_subgoals.
+      intro.
+      match goal with
+      | [ H : ?A, H' : ?A -> _ |- _ ] => specialize (H' H)
+      end.
+      destructAll.
       do 6 eexists; repeat ltac:(split; eauto).
       eapply LCEffEqual_trans; eauto.
   Qed.
@@ -2381,7 +3639,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
     HasTypeInstruction S M F L [Unreachable] (Arrow t1 t2) L' ->
     exists tl,
       M.is_empty (LinTyp S) = true /\
-      LCEffEqual (size F) (add_local_effects L tl) L'.
+      LCEffEqual (size F) (add_local_effects L tl) L' /\
+      LocalCtxValid F (add_local_effects L tl).
   Proof.
     assert (Heq : [Unreachable] = [Unreachable]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2389,45 +3648,65 @@ Theorem get_localtype_same_len_None l1 l2 n:
     intros arr i Heq Heq' Htyp.
     revert t1 t2 Heq'. induction Htyp; intros t1 t2 Heq1; try now inv Heq.
     - eexists. inv Heq1. split; eauto.
-      apply LCEffEqual_refl.
+      split; [ apply LCEffEqual_refl | ].
+      auto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll.
       eapply IHHtyp2 in Heq1; eauto.
       destructAll.
       eexists.
-      split.
+      repeat split.
       -- eapply SplitStoreTypings_Empty'; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto.
       destruct F; subst; simpl in *.
-      destructAll; eexists; split; eauto.
-    - solve_lceff_subgoals ltac:(1).
-      apply LCEffEqual_add_local_effects; auto.
+      destructAll; eexists; repeat split; eauto.
+      eapply LocalCtxValid_Function_Ctx; eauto.
+    - start_lceff_subgoals.
+      eexists; repeat split; eauto.
+      -- eapply LCEffEqual_trans; eauto.
+         apply LCEffEqual_add_local_effects; auto.
+         apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         apply LCEffEqual_sym; auto.
     - solve_lceff_subgoals ltac:(1).
   Qed.
 
   Lemma Trap_HasTypeInstruction S M F L t1 t2 L' :
     HasTypeInstruction S M F L [Trap] (Arrow t1 t2) L' ->
     exists tl,
-      LCEffEqual (size F) (add_local_effects L tl) L'.
+      LCEffEqual (size F) (add_local_effects L tl) L' /\
+      LocalCtxValid F (add_local_effects L tl).
   Proof.
     assert (Heq : [Trap] = [Trap]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
     revert Heq Heq'. generalize [Trap] at 1 3. generalize (Arrow t1 t2) at 1 3.
     intros arr i Heq Heq' Htyp.
     revert t1 t2 Heq'. induction Htyp; intros t1 t2 Heq1; try now inv Heq.
-    - eexists. inv Heq1. apply LCEffEqual_refl.
+    - eexists. inv Heq1. split; [ apply LCEffEqual_refl | ].
+      auto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll.
       eapply IHHtyp2 in Heq1; destructAll; auto.
-      eexists; eapply LCEffEqual_trans; eauto.
-      apply LCEffEqual_add_local_effects; auto.
+      eexists; split.
+      -- eapply LCEffEqual_trans; eauto.
+         apply LCEffEqual_add_local_effects; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto.
       destruct F; subst; simpl in *.
-      eauto.
-    - solve_lceff_subgoals ltac:(1).
-      apply LCEffEqual_add_local_effects; auto.
+      destructAll.
+      eexists; split; eauto.
+      eapply LocalCtxValid_Function_Ctx; eauto.
+    - start_lceff_subgoals.
+      eexists.
+      split.
+      -- eapply LCEffEqual_trans; eauto.
+         apply LCEffEqual_add_local_effects; auto.
+         apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         apply LCEffEqual_sym; auto.
     - solve_lceff_subgoals ltac:(1).
   Qed.
 
@@ -2474,12 +3753,16 @@ Theorem get_localtype_same_len_None l1 l2 n:
       arr = Arrow t1' t2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F := update_linear_ctx (set_hd qf (linear F)) F in
       let F1 := update_label_ctx ((t2', L'') :: label F) F in
       let F2 := update_linear_ctx (Cons_p (QualConst Unrestricted) (linear F)) F1 in
       HasTypeInstruction S M F2 L es arr L' /\
       LCEffEqual (size F) (add_local_effects L lf) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L lf) /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [Block arr lf es] = [Block arr lf es]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2489,11 +3772,20 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - inv Heq. inv Heq1; eauto. exists []. do 4 eexists. split. reflexivity.
       split. reflexivity. split. reflexivity.
       split. now constructor.
-      split. eapply QualLeq_Refl. split; eauto.
+      split. eapply QualLeq_Refl.
+      split; auto.
+      split; auto.
+      split; eauto.
       rewrite !set_get_hd.
       destruct F. simpl in *. eassumption.
       split; [ apply LCEffEqual_refl | ].
       destruct F; subst; simpl in *; auto.
+      split; auto.
+      rewrite set_get_hd.
+      split; auto.
+      eapply LocalCtxValid_Function_Ctx.
+      { eapply HasTypeInstruction_SecondLocalValid; eauto. }
+      all: simpl; auto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll. eauto.
       simpl. setoid_rewrite <- SplitStoreTypings_Empty_eq; eauto.
@@ -2506,11 +3798,16 @@ Theorem get_localtype_same_len_None l1 l2 n:
       do 5 eexists.
       repeat ltac:(split; eauto).
       -- eapply ChangeBegLocalTyp; eauto.
-         destruct F; subst; simpl in *.
-         apply LCEffEqual_sym; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- apply LCEffEqual_sym; auto.
       -- destruct F; subst; simpl in *.
          eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+             all: destruct F; auto.
+         --- destruct F; simpl in *; auto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       destruct F. simpl. subst. unfold F' in *. simpl in *.
       do 3 eexists. exists x2. eexists. split.
@@ -2520,29 +3817,42 @@ Theorem get_localtype_same_len_None l1 l2 n:
       split.
       eapply Forall_app. split; [ | eassumption ].
 
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       split.
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
+      split; auto.
+      split; auto.
+
       simpl in *; destructAll.
-      split; [ | split; auto ].
-      -- rewrite set_set_hd in *. eauto.
-      -- auto.
+      repeat split; rewrite set_set_hd in *; eauto.
     - specialize (IHHtyp _ _ _ _ _ Heq Heq1).
       destruct F; subst; simpl in *.
       destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
-      eapply LCEffEqual_trans; eauto.
-      apply LCEffEqual_add_local_effects.
-      apply LCEffEqual_sym; auto.
+      -- eapply ChangeBegLocalTyp; eauto.
+         eapply LocalCtxValid_Function_Ctx; eauto.
+      -- eapply LCEffEqual_trans; eauto.
+         apply LCEffEqual_add_local_effects.
+         apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- simpl in *.
+             apply LCEffEqual_sym; auto.
     - specialize (IHHtyp _ _ _ _ _ Heq Heq1).
       destruct F; subst; simpl in *.
       destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
+      -- eapply ChangeEndLocalTyp; eauto.
+         eapply LocalCtxValid_Function_Ctx; eauto.
       -- eapply LCEffEqual_trans; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_sym; auto.
@@ -2557,12 +3867,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
       arr = Arrow t1' t2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F := update_linear_ctx (set_hd qf (linear F)) F in
       let F1 := update_label_ctx ((t1', L'') :: label F) F in
       let F2 := update_linear_ctx (Cons_p (QualConst Unrestricted) (linear F)) F1 in
       HasTypeInstruction S M F2 L es arr L /\
       LCEffEqual (size F) L L' /\
-      LCEffEqual (size F) L L''.
+      LCEffEqual (size F) L L'' /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [Loop arr es] = [Loop arr es]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2573,18 +3886,25 @@ Theorem get_localtype_same_len_None l1 l2 n:
       split. reflexivity. split. reflexivity.
       split. now constructor.
       split. eapply QualLeq_Refl. simpl.
+      split. auto.
+      split. auto.
       rewrite !set_get_hd.
-      destruct F. simpl in *. split; try eassumption.
-      split; apply LCEffEqual_refl.
+      destruct F. simpl in *.
+      split; try eassumption.
+      repeat split; try apply LCEffEqual_refl.
+      eapply LocalCtxValid_Function_Ctx.
+      { eapply HasTypeInstruction_FirstLocalValid; eauto. }
+      all: auto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll. eauto.
       simpl. setoid_rewrite <- SplitStoreTypings_Empty_eq; eauto.
       specialize (IHHtyp2 _ _ _ _ eq_refl Heq1).
       simpl in *; destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
-      -- eapply ChangeBegLocalTyp; [ | eapply ChangeEndLocalTyp; eauto ].
+      -- eapply ChangeBegLocalTyp; [ | | eapply ChangeEndLocalTyp; eauto ].
          all: destruct F; subst; simpl in *.
-         all: apply LCEffEqual_sym; auto.
+         2,4: apply LCEffEqual_sym; auto.
+         all: eapply LocalCtxValid_Function_Ctx; eauto.
       -- destruct F; subst; simpl in *; auto.
          eapply LCEffEqual_trans; eauto.
       -- destruct F; subst; simpl in *; auto.
@@ -2598,20 +3918,28 @@ Theorem get_localtype_same_len_None l1 l2 n:
       split.
       eapply Forall_app. split; [ | eassumption ].
 
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       split.
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
+      split; auto.
+      split; auto.
+
       destruct linear. eassumption. eassumption.
     - specialize (IHHtyp _ _ _ _ Heq Heq1).
       simpl in *; destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
-      -- eapply ChangeBegLocalTyp; [ | eapply ChangeEndLocalTyp; eauto ].
+      -- eapply ChangeBegLocalTyp; [ | | eapply ChangeEndLocalTyp; eauto ].
          all: destruct F; subst; simpl in *; auto.
+         all: eapply LocalCtxValid_Function_Ctx; eauto.
       -- destruct F; subst; simpl in *.
          eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_sym; auto.
@@ -2634,13 +3962,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
       arr = Arrow t1' t2' /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       let F := update_linear_ctx (set_hd qf (linear F)) F in
       let F1 := update_label_ctx ((t2', L'') :: label F) F in
       let F2 := update_linear_ctx (Cons_p (QualConst Unrestricted) (linear F)) F1 in
       HasTypeInstruction S M F2 L es1 arr L' /\
       HasTypeInstruction S M F2 L es2 arr L' /\
       LCEffEqual (size F) (add_local_effects L lf) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L lf) /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [ITE arr lf es1 es2] = [ITE arr lf es1 es2]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2650,13 +3982,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - inv Heq. inv Heq1; eauto. exists []. do 5 eexists.
       split. reflexivity. split. reflexivity. split. reflexivity.
       split. now constructor.
-      split. eapply QualLeq_Refl. split; eauto.
+      split. eapply QualLeq_Refl.
+      split; auto.
+      split; auto.
       rewrite !set_get_hd.
       destruct F. simpl in *. eauto.
       split; eauto.
-      rewrite !set_get_hd.
-      destruct F. simpl in *. eauto.
-      split; destruct F; simpl in *; auto; apply LCEffEqual_refl.
+      split. simpl in *. eauto.
+      repeat split; simpl in *; auto; try apply LCEffEqual_refl.
+      eapply LocalCtxValid_Function_Ctx.
+      { eapply HasTypeInstruction_SecondLocalValid; eauto. }
+      all: auto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll. eauto. simpl.
 
@@ -2671,14 +4007,20 @@ Theorem get_localtype_same_len_None l1 l2 n:
       end.
       do 6 eexists; repeat ltac:(split; eauto).
       -- eapply ChangeBegLocalTyp; eauto.
-         destruct F; subst; simpl in *.
-         apply LCEffEqual_sym; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- apply LCEffEqual_sym; auto.
       -- eapply ChangeBegLocalTyp; eauto.
-         destruct F; subst; simpl in *.
-         apply LCEffEqual_sym; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- apply LCEffEqual_sym; auto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects.
          destruct F; subst; simpl in *; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+             all: destruct F; auto.
+         --- destruct F; simpl in *; auto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       destruct F. simpl. subst. unfold F' in *. simpl in *.
       destructAll.
@@ -2689,37 +4031,57 @@ Theorem get_localtype_same_len_None l1 l2 n:
       split.
       eapply Forall_app. split; [ | eassumption ].
 
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       split.
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
+      split; auto.
+      split; auto.
+
       split; [ rewrite set_set_hd in *; eauto | ].
       split; [ rewrite set_set_hd in *; eauto | ].
-      eauto.
+      repeat split; rewrite set_set_hd in *; eauto.
     - specialize (IHHtyp _ _ _ _ _ _ Heq Heq1).
       simpl in *; destructAll.
       do 6 eexists; repeat ltac:(split; eauto).
       -- eapply ChangeBegLocalTyp; eauto.
-         destruct F; subst; simpl in *; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- auto.
       -- eapply ChangeBegLocalTyp; eauto.
-         destruct F; subst; simpl in *; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- auto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects.
          destruct F; subst; simpl in *.
          apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+             all: destruct F; auto.
+         --- destruct F; simpl in *; auto.
+             apply LCEffEqual_sym; auto.
     - specialize (IHHtyp _ _ _ _ _ _ Heq Heq1).
       simpl in *; destructAll.
       do 6 eexists; repeat ltac:(split; eauto).
       -- eapply ChangeEndLocalTyp; eauto.
-         destruct F; subst; simpl in *; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- auto.
       -- eapply ChangeEndLocalTyp; eauto.
-         destruct F; subst; simpl in *; auto.
+         all: destruct F; subst; simpl in *.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+         --- auto.
       -- eapply LCEffEqual_trans; eauto.
-         destruct F; subst; simpl in *; auto.
+         all: destruct F; subst; simpl in *; auto.
       -- eapply LCEffEqual_trans; eauto.
          destruct F; subst; simpl in *.
          apply LCEffEqual_sym; auto.
@@ -2736,6 +4098,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
 
       let F := update_linear_ctx (set_hd qf (linear F)) F in
       let F1 := update_label_ctx ((t1', L'') :: label F) F in
@@ -2743,7 +4107,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
       HasTypeInstruction (empty_LinTyp S) M F L' es1 (Arrow t1' t2') L' /\
       HasTypeInstruction S M F2 L es2 (Arrow [] t2') L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [Label i arr es1 es2] = [Label i arr es1 es2]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2753,26 +4118,33 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - inv Heq. inv Heq1; eauto. exists []. do 4 eexists. split. reflexivity.
       split. reflexivity. split. reflexivity.
       split. now constructor.
-      split. now constructor. split. eapply QualLeq_Refl. split; eauto.
+      split. now constructor. split. eapply QualLeq_Refl.
+      split; auto.
+      split; auto.
+      split.
       rewrite !set_get_hd.
       destruct F. simpl in *; eauto.
       rewrite !set_get_hd.
       destruct F. simpl in *; split; eauto.
-      apply LCEffEqual_refl.
+      split; [ apply LCEffEqual_refl | ].
+      eapply LocalCtxValid_Function_Ctx.
+      { eapply HasTypeInstruction_SecondLocalValid; eauto. }
+      all: auto.
     - eapply elt_eq_unit in Heq. destructAll.
       eapply Empty_HasTypeInstruction in Htyp1. inv Heq1.
       destructAll. eauto.
-      simpl. setoid_rewrite <- (SplitStoreTypings_Empty_eq _ _ _ H H3) at 1;
+      simpl. setoid_rewrite <- (SplitStoreTypings_Empty_eq _ _ _ H H5) at 1;
                eauto.
-      simpl. setoid_rewrite <- (SplitStoreTypings_Empty_eq _ _ _ H H3) at 1;
+      simpl. setoid_rewrite <- (SplitStoreTypings_Empty_eq _ _ _ H H5) at 1;
                eauto.
 
       specialize (IHHtyp2 _ _ _ _ _ _ eq_refl eq_refl).
       simpl in *; destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
       eapply ChangeBegLocalTyp; eauto.
-      destruct F; subst; simpl in *.
-      apply LCEffEqual_sym; auto.
+      all: destruct F; subst; simpl in *.
+      -- eapply LocalCtxValid_Function_Ctx; eauto.
+      -- apply LCEffEqual_sym; auto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       destruct F. simpl. subst. unfold F' in *. simpl in *.
       do 3 eexists. exists x2. eexists. split. reflexivity. split.
@@ -2782,13 +4154,19 @@ Theorem get_localtype_same_len_None l1 l2 n:
       split.
       eapply Forall_app. split; [ | eassumption ].
 
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }      
 
       split.
-
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
+
+      split; auto.
+      split; auto.
 
       destructAll.
       destruct linear; repeat split; eassumption.
@@ -2796,14 +4174,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
       simpl in *; destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
       eapply ChangeBegLocalTyp; eauto.
-      destruct F; subst; simpl in *; auto.
+      all: destruct F; subst; simpl in *; auto.
+      eapply LocalCtxValid_Function_Ctx; eauto.
     - specialize (IHHtyp _ _ _ _ _ _ Heq Heq1).
       simpl in *; destructAll.
       do 5 eexists; repeat ltac:(split; eauto).
-      -- eapply ChangeBegLocalTyp; [ | eapply ChangeEndLocalTyp; eauto ].
+      -- eapply ChangeBegLocalTyp; [ | | eapply ChangeEndLocalTyp; eauto ].
          all: destruct F; subst; simpl in *; auto.
+         all: eapply LocalCtxValid_Function_Ctx; eauto.
       -- eapply ChangeEndLocalTyp; eauto.
-         destruct F; subst; simpl in *; auto.
+         all: destruct F; subst; simpl in *; auto.
+         eapply LocalCtxValid_Function_Ctx; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_sym.
          destruct F; subst; simpl in *; auto.
@@ -2816,6 +4197,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
       nth_error (label F) i = Some (t1', L'') /\
 
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
 
       let F := update_linear_ctx (set_hd qf (linear F)) F in
@@ -2824,11 +4207,13 @@ Theorem get_localtype_same_len_None l1 l2 n:
           j <= i ->
           exists q : Qual,
             nth_error_plist (linear F) j = Some q /\
+            QualValid (qual F) q /\
             QualLeq (qual F) q Unrestricted = Some true) /\
       t1 = t ++ t1' ++ [QualT uint32T q] /\
       t2 = t ++ t1' /\
       LCEffEqual (size F) L L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [Br_if i] = [Br_if i]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2839,11 +4224,14 @@ Theorem get_localtype_same_len_None l1 l2 n:
       exists []. do 4 eexists; split. eassumption.
       split. eassumption.
       split. now eapply QualLeq_Refl.
+      split; auto.
+      split; auto.
       split. now constructor.
-      simpl. rewrite set_get_hd. split. eassumption.
+      simpl. rewrite set_get_hd.
+      split. auto.
       split; eauto.
       split; eauto.
-      split; apply LCEffEqual_refl.
+      repeat split; auto; apply LCEffEqual_refl.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       edestruct IHHtyp2. reflexivity. reflexivity. destructAll. inv Heq1.
       do 5 eexists. split.
@@ -2859,21 +4247,31 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
       rewrite get_set_hd in *.
 
-      split; [| split; [| split; [| split; [| split; [| split ] ]]] ].
+      split; [| split; [| split; [| split; [| split; [| split; [ | split; [ | split; [ | split ] ] ] ] ]]] ].
       eassumption.
-      5:{ rewrite app_assoc; reflexivity. }
-      4:{ rewrite app_assoc; reflexivity. }
-      2:{ eapply Forall_app. split; [|  eassumption ].
-          prepare_Forall. eapply QualLeq_Trans; eassumption. }
+      6:{ rewrite app_assoc; reflexivity. }
+      6:{ rewrite app_assoc; reflexivity. }
+      4:{ eapply Forall_app. split; [|  eassumption ].
+          prepare_Forall.
+          eapply QualLeq_Trans; eassumption. }
 
       + eapply QualLeq_Trans; eassumption.
+      + auto.
+      + auto.
       + rewrite set_set_hd in *. eauto.
-      + split; auto.
+      + auto.
+      + rewrite set_set_hd in *. eauto.
     - solve_lceff_subgoals ltac:(5).
       destruct F; subst; simpl in *; auto.
     - solve_lceff_subgoals ltac:(5).
       all: destruct F; subst; simpl in *; auto.
       apply LCEffEqual_sym; auto.
+  Qed.
+
+  Lemma linear_update_linear_ctx : forall {F},
+      update_linear_ctx (linear F) F = F.
+  Proof.
+    destruct F; auto.
   Qed.
 
   Lemma Br_table_HasTypeInstruction S M F L t1 t2 L' l i :
@@ -2884,6 +4282,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
       Forall (fun tau : Typ => TypQualLeq F tau Unrestricted = Some true) t1'' /\
 
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
 
       let F := update_linear_ctx (set_hd qf (linear F)) F in
@@ -2892,11 +4292,14 @@ Theorem get_localtype_same_len_None l1 l2 n:
           j <= list_max (l ++ [i]) ->
           exists q : Qual,
             nth_error_plist (linear F) j = Some q /\
+            QualValid (qual F) q /\
             QualLeq (qual F) q Unrestricted = Some true) /\
       t1 = t ++ t1'' ++ t1' ++ [QualT uint32T q] /\
       t2 = t ++ t2' /\
       LCEffEqual (size F) (add_local_effects L tl) L' /\
-      LCEffEqual (size F) L L''.
+      LCEffEqual (size F) L L'' /\
+      LocalCtxValid F (add_local_effects L tl) /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [Br_table l i] = [Br_table l i]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2906,11 +4309,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - inv Heq1; inv Heq. do 8 eexists. split. eassumption.
       split. eassumption.
       split. eassumption. split. eapply QualLeq_Refl.
+      split; auto.
+      split; auto.
       split. now constructor.
-      simpl. split. rewrite set_get_hd.
-      destruct F. eassumption.
+      simpl.
+      rewrite set_get_hd.
+      rewrite linear_update_linear_ctx.
+      split; auto.
       split. reflexivity. split; [ reflexivity | ].
-      split; apply LCEffEqual_refl.
+      repeat split; eauto; apply LCEffEqual_refl.      
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       edestruct IHHtyp2. reflexivity. reflexivity.
       destructAll. inv Heq1. do 8 eexists.
@@ -2920,28 +4327,45 @@ Theorem get_localtype_same_len_None l1 l2 n:
       simpl in *; destructAll.
       repeat ltac:(split; eauto).
       all: destruct F; subst; simpl in *.
-      all: eapply LCEffEqual_trans; eauto.
-      apply LCEffEqual_add_local_effects; auto.
+      1-2: eapply LCEffEqual_trans; eauto.
+      -- apply LCEffEqual_add_local_effects; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         eapply LocalCtxValid_Function_Ctx; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto.
       destruct F; simpl in *. destructAll.
 
       do 8 eexists. split. eassumption. split. eassumption.
       rewrite get_set_hd in *.
-      split; [| split; [| split; [| split; [| split; [| split]]]]].
+      split; [| split; [| split; [| split; [| split; [| split; [ |split; [| split; [| split; [| split]]]]]]]]].
 
-      5:{ rewrite app_assoc; reflexivity. }
-      5:{ rewrite app_assoc; reflexivity. }
-      3:{ eapply Forall_app. split; [|  eassumption ].
-          prepare_Forall. eapply QualLeq_Trans; eassumption. }
+      7:{ rewrite app_assoc; reflexivity. }
+      7:{ rewrite app_assoc; reflexivity. }
+      5:{ eapply Forall_app. split; [|  eassumption ].
+          prepare_Forall.
+          eapply QualLeq_Trans; eassumption. }
 
       + eassumption.
       + eapply QualLeq_Trans; eassumption.
+      + auto.
+      + auto.
       + rewrite set_set_hd in *. eauto.
-      + split; eauto.
-    - solve_lceff_subgoals ltac:(8).
-      -- apply LCEffEqual_add_local_effects.
+      + eauto.
+      + eauto.
+      + rewrite set_set_hd in *. split; eauto.
+    - start_lceff_subgoals.
+      do 8 eexists.
+      repeat split; eauto.
+      -- eapply LCEffEqual_trans; eauto.
+         apply LCEffEqual_add_local_effects.
          destruct F; subst; simpl in *; auto.
+         apply LCEffEqual_sym; auto.
       -- destruct F; subst; simpl in *; auto.
+         eapply LCEffEqual_trans; eauto.
+         apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         eapply LocalCtxValid_Function_Ctx; eauto.
+         all: destruct F; simpl; auto.
+         apply LCEffEqual_sym; auto.
     - solve_lceff_subgoals ltac:(8).
       destruct F; subst; simpl in *.
       apply LCEffEqual_sym; auto.
@@ -2949,6 +4373,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
   Lemma Ret_HasTypeInstruction S M F L t1 t2 L' :
     HasTypeInstruction S M F L [Ret] (Arrow t1 t2) L' ->
+    qual F = [] ->
     exists ts taus1' taus1 taus2 qf tl,
       M.is_empty (LinTyp S) = true /\
       ret F = Some taus1'  /\
@@ -2957,17 +4382,20 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
       Forall (fun taus => TypQualLeq F taus Unrestricted = Some true) taus1 /\
 
-      Forall_plist (fun q : Qual => QualLeq (qual F) q Unrestricted = Some true)
+      Forall_plist (fun q : Qual => QualValid (qual F) q /\ QualLeq (qual F) q Unrestricted = Some true)
                    (linear F) /\
 
       QualLeq (qual F) qf Unrestricted = Some true /\
 
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
 
       t1 = ts ++ taus1 ++ taus1' /\
       t2 = ts ++ taus2 /\
-      LCEffEqual (size F) (add_local_effects L tl) L'.
+      LCEffEqual (size F) (add_local_effects L tl) L' /\
+      LocalCtxValid F (add_local_effects L tl).
   Proof.
     assert (Heq : [Ret] = [Ret]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -2977,14 +4405,16 @@ Theorem get_localtype_same_len_None l1 l2 n:
     revert t1 t2 Heq'. induction Htyp; intros t1 t2 Heq1; try now inv Heq.
     - simpl in *. inv Heq. inv Heq1.
       exists []. do 5 eexists; repeat split; eauto.
-      eapply QualLeq_Refl.
-
-      destruct linear.
-      + inv H3. simpl; eassumption.
-      + inv H3. simpl. eassumption.
-      + apply LCEffEqual_refl.
+      { match goal with
+        | [ H : Forall_plist _ _ |- _ ] => inv H
+        end.
+        all: destructAll.
+        all: simpl in *; auto. }
+      apply QualLeq_Refl.
+      apply LCEffEqual_refl.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
-      edestruct IHHtyp2. reflexivity. reflexivity.
+      intro.
+      edestruct IHHtyp2. reflexivity. reflexivity. auto.
       destructAll. inv Heq1. do 6 eexists. split.
 
       eapply SplitStoreTypings_Empty'. eassumption. now eauto.
@@ -2996,15 +4426,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
          apply LCEffEqual_sym; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects; auto.
-    - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+    - subst. inv Heq1. intro. edestruct IHHtyp; eauto. destructAll.
+      destruct F; simpl in *. destructAll. auto.
       destruct F; simpl in *. destructAll.
-      do 6 eexists. esplit; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [| split]]]]]]]]].
+      do 6 eexists. esplit; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [| split; [| split]]]]]]]]]]].
       eassumption. reflexivity. eassumption.
 
 
-      6:{ rewrite app_assoc. reflexivity. }
+      8:{ rewrite app_assoc. reflexivity. }
 
-      6:{ rewrite app_assoc. reflexivity. }
+      8:{ rewrite app_assoc. reflexivity. }
 
 
       eapply Forall_impl; [| eassumption ]. intros [? ?].
@@ -3019,27 +4451,54 @@ Theorem get_localtype_same_len_None l1 l2 n:
             inversion H; subst; simpl in *
           end.
         all: constructor.
+        all: destructAll.
+        all: auto.
+        all:
+          match goal with
+          | [ |- _ /\ ?B ] =>
+              let H := fresh "H" in
+              assert (H : B); [ | rewrite (QualLeq_Bottom_Const _ H) ]
+          end.
         all: try ltac:(eapply QualLeq_Trans; eassumption).
-        all: auto. }
+        all: split; [ econstructor; eauto | ].
+        all: apply QualLeq_Refl. }
 
       2:{ eapply Forall_app. split; [| eassumption ].
 
           prepare_Forall.
-          eapply QualLeq_Trans. eassumption.
-          rewrite get_set_hd in *. eassumption. }
+          eapply QualLeq_Trans.
+          - eassumption.
+          - rewrite get_set_hd in *. eassumption. }
 
       2:{ eapply QualLeq_Trans. eassumption.
           rewrite get_set_hd in *. eassumption. }
 
-      eassumption.
-      eauto.
+      + eassumption.
+      + auto.
+      + auto.
+      + split; eauto.
+        eapply LocalCtxValid_Function_Ctx; eauto.
     - start_lceff_subgoals.
+      intro.
+      match goal with
+      | [ H : ?A, H' : ?A -> _ |- _ ] => specialize (H' H)
+      end.
+      destructAll.                                  
       do 6 eexists; repeat ltac:(split; eauto).
       -- eapply LCEffEqual_Forall; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects.
          apply LCEffEqual_sym; auto.
-    - solve_lceff_subgoals ltac:(6).
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         apply LCEffEqual_sym; auto.
+    - start_lceff_subgoals.
+      intro.
+      match goal with
+      | [ H : ?A, H' : ?A -> _ |- _ ] => specialize (H' H)
+      end.
+      destructAll.                                  
+      do 6 eexists; repeat ltac:(split; eauto).
+      eapply LCEffEqual_trans; eauto.
   Qed.
 
   Lemma Get_local_unr_HasTypeInstruction S M F L t1 t2 L' i :
@@ -3049,7 +4508,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
       M.is_empty (LinTyp S) = true /\
       t1 ++ [QualT pt Unrestricted] = t2 /\
       nth_error L i = Some (QualT pt Unrestricted, sz) /\
-      LCEffEqual (size F) (set_localtype i (QualT pt Unrestricted) sz L) L'.
+      LCEffEqual (size F) (set_localtype i (QualT pt Unrestricted) sz L) L' /\
+      LocalCtxValid F (set_localtype i (QualT pt Unrestricted) sz L).
   Proof.
     intros.
     apply Get_local_HasTypeInstruction in H.
@@ -3063,7 +4523,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
                specialize (H eq_refl)
              end.
     - do 2 eexists; repeat ltac:(split; eauto).
-      subst; auto.
+      all: subst; auto.
     - exfalso.
       eapply QualLeq_Const_False.
       match goal with
@@ -3078,7 +4538,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
       M.is_empty (LinTyp S) = true /\
       t1 ++ [QualT pt Linear] = t2 /\
       nth_error L i = Some (QualT pt Linear, sz) /\
-      LCEffEqual (size F) (set_localtype i (QualT Unit Unrestricted) sz L) L'.
+      LCEffEqual (size F) (set_localtype i (QualT Unit Unrestricted) sz L) L' /\
+      LocalCtxValid F (set_localtype i (QualT Unit Unrestricted) sz L).
   Proof.
     intros.
     apply Get_local_HasTypeInstruction in H.
@@ -3100,7 +4561,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
              specialize (H eq_refl)
            end.
     do 2 eexists; repeat ltac:(split; eauto).
-    subst; auto.
+    all: subst; auto.
   Qed.
 
   Lemma Get_global_HasTypeInstruction S M F L t1 t2 L' i :
@@ -3280,7 +4741,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
         | [ H : ?A = ?B |- context[?B] ] => rewrite <-H; auto
         end.
     - eapply TypeInstValid; eauto.
-      3: eapply TypeValid_Function_Ctx; eauto.
+      5: eapply TypeValid_Function_Ctx; eauto.
       all: unfold heapable.
       all:
         match goal with
@@ -3466,7 +4927,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
     eapply Value_ind' with (v := v); intros; inv Ht; eauto.
     - eapply H. eassumption.
       inv H5.
-      eapply QualLeq_Trans. exact H8. exact Hleq.
+      eapply QualLeq_Trans. 2: eauto. eauto.
       auto.
     - inv H7.
       eapply SplitStoreTypings_Empty'. eassumption.
@@ -3482,11 +4943,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
         eapply QualLeq_Trans; eassumption.
         auto.
     - exfalso. eapply QualLeq_Const_False.
-      rewrite <-Hempty.
-      eapply QualLeq_Trans; eassumption.
+      eapply QualLeq_Trans; eauto.
+      rewrite <-Hempty; auto.
     - exfalso. eapply QualLeq_Const_False.
-      rewrite <-Hempty.
-      eapply QualLeq_Trans; eassumption.
+      eapply QualLeq_Trans; eauto.
+      rewrite <-Hempty; auto.
     - destruct t. simpl in *. eapply H.
       eassumption.
       simpl.
@@ -3526,7 +4987,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
     forall (Hvalid : LocalCtxValid F L''),
 
     Forall_plist
-      (fun q : Qual => QualLeq (qual F) q Unrestricted = Some true)
+      (fun q : Qual => QualValid (qual F) q /\ QualLeq (qual F) q Unrestricted = Some true)
       (linear F) /\
     Forall (fun '(QualT _ q, _) => QualLeq (qual F) q Unrestricted = Some true) L /\
     HasTypeInstruction S M F L'' vs (Arrow [] r) L''.
@@ -3538,7 +4999,10 @@ Theorem get_localtype_same_len_None l1 l2 n:
       symmetry in H. eapply app_eq_nil in H.
       destructAll. simpl in *. clear H1.
 
-      eapply composition_typing in H3. destructAll.
+      match goal with
+      | [ H : HasTypeInstruction _ _ _ _ (_ ++ _ ++ _) _ _ |- _ ] =>
+          eapply composition_typing in H; destructAll
+      end.
       symmetry in H. eapply app_eq_nil in H. destructAll. clear H1.
 
       destruct F; simpl in *; destructAll.
@@ -3570,13 +5034,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
       + destruct linear.
         * constructor.
-          simpl in *. subst.  eapply QualLeq_Refl.
+          simpl in *. subst.
+          split; [ econstructor; eauto | ].
+          eapply QualLeq_Refl.
         * simpl in *.
           match goal with
           | [ H : Forall_plist _ _ |- _ ] => inversion H; subst
           end.
           constructor; eauto.
-          simpl in *. eapply QualLeq_Refl.
+          simpl in *.
+          split; [ econstructor; eauto | ].
+          eapply QualLeq_Refl.
 
       + eapply LCEffEqual_Forall; [ | eauto | eauto ].
         apply LCEffEqual_sym.
@@ -3605,7 +5073,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
           all:
             match goal with
             | [ H : Forall_plist _ _ |- _ ] => inversion H; eauto
-            end. }
+            end.
+          all: destructAll; auto.
+        }
 
         match goal with
         | [ H : Forall _ (_ ++ _) |- _ ] =>
@@ -3624,11 +5094,13 @@ Theorem get_localtype_same_len_None l1 l2 n:
             split.
 
             prepare_Forall.
+            destructAll.
             eapply QualLeq_Trans. eassumption. eassumption.
 
             eapply Forall_app. split.
 
             prepare_Forall.
+            destructAll.
             eapply QualLeq_Trans. eassumption. eassumption.
 
             eapply Forall_impl; [| eassumption ].
@@ -3637,7 +5109,10 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
         eapply SplitStoreTypings_Empty_eq in H1; [| eassumption ].
 
-        eapply HasTypeInstruction_surface in H4.
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ _ (Arrow (_ ++ _ ++ _) _) _ |- _ ] =>
+            eapply HasTypeInstruction_surface in H
+        end.
         2:{ assert (Hex : existsb nonval_Inst (vs ++ [Ret]) = true).
             { rewrite existsb_app. do_bools. right; reflexivity. }
             specialize (Hwf 0 (LZero l l0) (vs ++ [Ret]) Hneq Hex ltac:(reflexivity)).
@@ -3653,13 +5128,23 @@ Theorem get_localtype_same_len_None l1 l2 n:
             simpl; intros. eapply HasTypeValue_Function_Ctx; [| | | | eassumption ];
             reflexivity. }
 
-        eapply SplitStoreTypings_comm in H5.
-        eapply SplitStoreTypings_Empty_eq in H5; [| eassumption ].
+        match goal with
+        | [ H : SplitStoreTypings [_; _] ?S |- SplitStoreTypings _ ?S ] =>
+          eapply SplitStoreTypings_comm in H;
+          eapply SplitStoreTypings_Empty_eq in H; [| eassumption ]
+        end.        
 
         eapply SplitStoreTyping_eq. eassumption.
         rewrite H0, H1.  eassumption.
 
         eapply LocalCtxValid_Function_Ctx; eauto.
+        
+        simpl.
+        match goal with
+        | [ H : ?A = _ |- context[?A] ] => rewrite H
+        end.
+        econstructor; eauto.
+      + auto.
 
     - replace (map Val l ++ Label n a l0 (C |[ vs ++ [Ret] ]|) :: l1)
         with ((map Val l ++ [Label n a l0 (C |[ vs ++ [Ret] ]|)]) ++ l1)
@@ -3715,9 +5200,12 @@ Theorem get_localtype_same_len_None l1 l2 n:
           | [ H : Forall_plist _ _ |- _ ] => inversion H; subst
           end.
         * constructor. simpl in *; subst.
+          split; [ econstructor; eauto | ].
           apply QualLeq_Refl.
         * constructor; eauto.
-          simpl in *; subst. apply QualLeq_Refl.
+          simpl in *; subst.
+          split; [ econstructor; eauto | ].
+          apply QualLeq_Refl.
 
       + eapply LCEffEqual_Forall; [ | eauto | eauto ].
         apply LCEffEqual_sym.
@@ -3748,6 +5236,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
             simpl.
             eapply Forall_impl; [| eassumption ].
             simpl. intros [? ?] ?.
+            destructAll.
             eapply QualLeq_Trans. eassumption.
             match goal with
             | [ H : Forall_plist _ _ |- _ ] =>
@@ -3758,7 +5247,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
               | [ H : Forall_plist _ _ |- _ ] =>
                 inversion H; subst; eauto
               end.
-            simpl; auto. }
+            all: destructAll.
+            all: simpl; auto. }
         match goal with
         | [ H : M.is_empty (LinTyp ?S) = true,
             H' : SplitStoreTypings [?S; _] _ |- _ ] =>
@@ -3769,17 +5259,29 @@ Theorem get_localtype_same_len_None l1 l2 n:
         assert (Hneq : vs ++ [Ret] <> [] ).
         { intro Heq. destruct vs; inv Heq. }
 
-        eapply HasTypeInstruction_surface in H3.
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ _ (Arrow (_ ++ _) _) _ |- _ ] =>
+            eapply HasTypeInstruction_surface in H
+        end.
         2:{ assert (Hex : existsb nonval_Inst (vs ++ [Ret]) = true).
             { rewrite existsb_app. do_bools. right; reflexivity. }
 
             specialize (Hwf (1 + k) (LSucc_label k l (length x0) (Arrow [] x2) l0 C l1) (vs ++ [Ret]) Hneq Hex ltac:(reflexivity)).
             simpl in Hwf. eassumption. }
 
-        eapply SplitStoreTypings_comm in H4.
-        eapply SplitStoreTypings_Empty_eq in H4; [| eassumption ].
+        match goal with
+        | [ H : SplitStoreTypings [_; _] ?S |- StoreTyping_eq _ ?S ] =>
+          eapply SplitStoreTypings_comm in H;
+          eapply SplitStoreTypings_Empty_eq in H; [| eassumption ]
+        end.        
         eassumption.
         auto.
+
+        simpl.
+        match goal with
+        | [ H : ?A = _ |- context[?A] ] => rewrite H
+        end.
+        econstructor; eauto.
   Qed.
 
   Lemma Context_HasTypeInstruction_Br S M F r r' vs L L' L'' L0
@@ -3800,6 +5302,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
     (forall m, m <= (j - i) ->
                exists q,
                  nth_error_plist (linear F) m = Some q /\
+                 QualValid (qual F) q /\
                  QualLeq (qual F) q Unrestricted = Some true) /\
     HasTypeInstruction S M F L'' vs (Arrow [] r) L'' /\
     LCEffEqual (size F) L0 L.
@@ -3812,13 +5315,19 @@ Theorem get_localtype_same_len_None l1 l2 n:
       symmetry in H. eapply app_eq_nil in H.
       destructAll. simpl in *. clear H1.
 
-      eapply composition_typing in H3. destructAll.
-      symmetry in H. eapply app_eq_nil in H. destructAll. clear H1.
+      match goal with
+      | [ H : HasTypeInstruction _ _ _ _ (_ ++ _ ++ [Br _]) _ _ |- _ ] =>
+        eapply composition_typing in H; simpl in *; destructAll
+      end.
+      symmetry in H. eapply app_eq_nil in H. destructAll.
 
       destruct F; simpl in *; destructAll.
       rewrite !get_set_hd in *. rewrite !set_set_hd in *.
 
-      eapply composition_typing in H0. simpl in *; destructAll.
+      match goal with
+      | [ H : HasTypeInstruction _ _ _ _ (_ ++ [Br _]) _ _ |- _ ] =>
+        eapply composition_typing in H; simpl in *; destructAll
+      end.
 
       match goal with
       | [ H : HasTypeInstruction _ _ _ _ [Br _] _ _ |- _ ] =>
@@ -3839,7 +5348,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
       end.
       destructAll.
 
-      eapply Values_HasTypeInstruction with (H := values_Val l) in H. destructAll.
+      match goal with
+      | [ H' : HasTypeInstruction _ _ _ _ (map Val _) _ _ |- _ ] =>
+        eapply Values_HasTypeInstruction with (H := values_Val l) in H'; destructAll
+      end.
+      
       simpl in *; subst.
 
       split; [| split ].
@@ -3853,11 +5366,19 @@ Theorem get_localtype_same_len_None l1 l2 n:
         destruct m.
         * eexists (get_hd linear).
           rewrite nth_error_plist_hd_Zero. split; eauto.
-          rewrite Hhd. eapply QualLeq_Refl.
-        * rewrite nth_error_plist_hd_Succ in H.
+          rewrite Hhd.
+          split; [ econstructor; eauto | ].
+          eapply QualLeq_Refl.
+        * match goal with
+          | [ H : nth_error_plist _ _ = _ |- _ ] =>
+              rewrite nth_error_plist_hd_Succ in H
+          end.
           eexists. split; eauto.
 
-      + eapply SplitStoreTypings_Empty_eq in H0.
+      + match goal with
+        | [ H' : M.is_empty (LinTyp ?S) = true |- _ ] =>
+            eapply SplitStoreTypings_Empty_eq in H'
+        end.
         2:{ eapply SplitStoreTypings_comm. eassumption. }
 
         assert (Hneq : vs ++ [Br j] <> [] ).
@@ -3880,7 +5401,10 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
         destructAll.
 
-        assert (HleqU : QualLeq [] x15 Unrestricted = Some true).
+        match goal with
+        | [ H : context[nth_error_plist (set_hd ?Q _)] |- _ ] =>
+            assert (HleqU : QualLeq [] Q Unrestricted = Some true)
+        end.
         { match goal with
           | [ H : forall _, _ <= _ -> _ |- _ ] =>
             specialize (H 0 ltac:(lia))
@@ -3910,20 +5434,28 @@ Theorem get_localtype_same_len_None l1 l2 n:
             split.
 
             prepare_Forall.
+            destructAll.
             eapply QualLeq_Trans. eassumption. eassumption.
 
 
             eapply Forall_app. split.
 
             prepare_Forall.
+            destructAll.
             eapply QualLeq_Trans. eassumption. eassumption.
 
             eapply Forall_impl; [| eassumption ].
             simpl. intros [? ?] ?. eassumption. simpl; auto. }
 
-        eapply SplitStoreTypings_Empty_eq in H1; [| eassumption ].
+        match goal with
+        | [ H' : M.is_empty (LinTyp ?S) = true |- _ ] =>
+            eapply SplitStoreTypings_Empty_eq in H'; [| eassumption]
+        end.
 
-        eapply HasTypeInstruction_surface in H4.
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ _ _ _ |- _ ] =>
+            eapply HasTypeInstruction_surface in H
+        end.
         2:{ assert (Hex : existsb nonval_Inst (vs ++ [Br j]) = true).
             { rewrite existsb_app. do_bools. right; reflexivity. }
             specialize (Hwf 0 (LZero l l0) (vs ++ [Br j]) Hneq Hex ltac:(reflexivity)).
@@ -3935,16 +5467,30 @@ Theorem get_localtype_same_len_None l1 l2 n:
             simpl; intros. eapply HasTypeValue_Function_Ctx; [| | | | eassumption ];
             reflexivity. }
 
-        eapply SplitStoreTypings_comm in H5.
-        eapply SplitStoreTypings_Empty_eq in H5; [| eassumption ].
+        match goal with
+        | [ H' : M.is_empty (LinTyp ?S) = true |- _ ] =>
+            eapply SplitStoreTypings_Empty_eq in H'
+        end.
+        2:{
+          eapply SplitStoreTypings_comm; eauto.
+        }
 
         eapply SplitStoreTyping_eq. eassumption.
-        rewrite H0, H1.  eassumption.
+        match goal with
+        | [ H : StoreTyping_eq ?A ?B,
+            H' : StoreTyping_eq ?B ?C,
+            H'' : StoreTyping_eq ?C ?D
+            |- StoreTyping_eq ?A ?D ] =>
+            rewrite H, H'
+        end.
+        eassumption.
 
+        auto.
         auto.
         
       + apply LCEffEqual_sym.
         eapply LCEffEqual_trans; [ eapply LCEffEqual_trans | ]; eauto.
+      + auto.
 
     - replace (map Val l ++ Label n a l0 (C |[ vs ++ [Br j] ]|) :: l1)
         with ((map Val l ++ [Label n a l0 (C |[ vs ++ [Br j] ]|)]) ++ l1)
@@ -4009,7 +5555,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
         destruct m; destructAll.
         * eexists (get_hd linear).
           rewrite nth_error_plist_hd_Zero. split; eauto.
-          rewrite Hhd. eapply QualLeq_Refl.
+          rewrite Hhd.
+          split; [ econstructor; eauto | ].
+          eapply QualLeq_Refl.
         * rewrite nth_error_plist_hd_Succ in H0.
           eexists. split; eauto.
 
@@ -4030,6 +5578,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
         2:{ eapply Forall3_HasTypeValue_Unrestricted_LinEmpty. eassumption.
             simpl.
             prepare_Forall.
+            destructAll.
             eapply QualLeq_Trans. eassumption.
 
             specialize (H0 1 ltac:(lia)). simpl in H0. destructAll.
@@ -4045,19 +5594,60 @@ Theorem get_localtype_same_len_None l1 l2 n:
         assert (Hneq : vs ++ [Br j] <> [] ).
         { intro Heq. destruct vs; inv Heq. }
 
-        eapply HasTypeInstruction_surface in H3.
+        match goal with
+        | [ H : HasTypeInstruction (empty_LinTyp ?S) _ _ _ _ _ _,
+            H' : HasTypeInstruction ?S _ _ _ _ _ _,
+            H'' : HasTypeInstruction _ _ _ _ _ _ _ |- _ ] =>
+            eapply HasTypeInstruction_surface in H''
+        end.
         2:{ assert (Hex : existsb nonval_Inst (vs ++ [Br j]) = true).
             { rewrite existsb_app. do_bools. right; reflexivity. }
             specialize (Hwf (1 + k) (LSucc_label k l (length x0) (Arrow [] x2) l0 C l1) (vs ++ [Br j]) Hneq Hex ltac:(reflexivity)).
             simpl in Hwf. eassumption. }
 
-        eapply SplitStoreTypings_comm in H4.
-        eapply SplitStoreTypings_Empty_eq in H4; [| eassumption ].
+        match goal with
+        | [ H' : M.is_empty (LinTyp ?S) = true |- _ ] =>
+            eapply SplitStoreTypings_Empty_eq in H'
+        end.
+        2:{
+          eapply SplitStoreTypings_comm; eauto.
+        }
         eassumption.
         
         auto.
+
+        simpl.
+        match goal with
+        | [ H : ?A = _ |- context[?A] ] => rewrite H
+        end.
+        econstructor; eauto.
       + eapply LCEffEqual_trans; eauto.
         apply LCEffEqual_sym; auto.
+  Qed.
+  
+  Lemma tee_local_TypeValid : forall {i F L2 tpl t sz},
+      nth_error L2 i = Some tpl ->
+      LocalCtxValid F (set_localtype i t sz L2) ->
+      TypeValid F t.
+  Proof.
+    induction i.
+    all: intros.
+    all:
+      match goal with
+      | [ X : list _ |- _ ] => destruct X
+      end.
+    all: simpl in *.
+    all:
+      match goal with
+      | [ H : _ = Some _ |- _ ] => inv H
+      end.
+    all: unfold set_localtype in *.
+    all: simpl in *.
+    all:
+      match goal with
+      | [ H : LocalCtxValid _ _ |- _ ] => inv H
+      end.
+    all: destructAll; eauto.
   Qed.
 
   Lemma Tee_local_HasTypeInstruction S M F L t1 t2 L' i :
@@ -4074,7 +5664,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
       QualLeq (qual F) qn Unrestricted = Some true /\
       Some szn = sizeOfType (type F) t /\
       SizeLeq (typing.size F) szn sz = Some true /\
-      LCEffEqual (size F) (set_localtype i t sz L) L'.
+      SizeValid (typing.size F) szn /\
+      LCEffEqual (size F) (set_localtype i t sz L) L' /\
+      LocalCtxValid F (set_localtype i t sz L).
   Proof.
     assert (Heq : [Tee_local i] = [Tee_local i]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -4086,6 +5678,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
       -- apply LCEffEqual_refl.
       -- apply SizeLeq_Refl.
       -- apply SizeLeq_Refl.
+      -- eapply set_localtype_LocalCtxValid; eauto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       edestruct IHHtyp2. reflexivity. reflexivity.
 
@@ -4100,12 +5693,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
       -- eapply SizeLeq_Trans; eauto.
       -- eapply LCEffEqual_trans; eauto.
          apply set_localtype_LCEffEqual; auto.
+      -- eapply set_localtype_LocalCtxValid; eauto.
+         eapply tee_local_TypeValid.
+         2: eauto.
+         eauto.
 
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       destruct F; simpl in *.
       do 7 eexists. repeat split; try eassumption.
       rewrite app_assoc. reflexivity.
       rewrite app_assoc. reflexivity.
+      eapply LocalCtxValid_Function_Ctx; eauto.
     - start_lceff_subgoals.
       use_LCEffEqual_nth_error_left.
       do 7 eexists; repeat split; eauto.
@@ -4113,6 +5711,10 @@ Theorem get_localtype_same_len_None l1 l2 n:
       -- eapply LCEffEqual_trans; eauto.
          apply set_localtype_LCEffEqual; auto.
          apply LCEffEqual_sym; auto.
+      -- eapply set_localtype_LocalCtxValid; eauto.
+         eapply tee_local_TypeValid.
+         2: eauto.
+         eauto.
     - start_lceff_subgoals.
       do 7 eexists; repeat split; eauto.
       eapply LCEffEqual_trans; eauto.
@@ -4134,7 +5736,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
     intros arr l1 Heq Heq' Htyp.
     revert t1 t2 Heq'. induction Htyp; intros t1 t2 Heq1; try now inv Heq.
     - inv Heq1; inv Heq. eexists. repeat split; eauto.
-      apply LCEffEqual_refl.
+      -- eapply TypeValid_sub; eauto.
+         apply Function_Ctx_sub_Empty.
+      -- apply LCEffEqual_refl.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       edestruct IHHtyp2. reflexivity. reflexivity.
       destructAll. inv Heq1.
@@ -4889,6 +6493,92 @@ Theorem get_localtype_same_len_None l1 l2 n:
     solve_ineqs.
   Qed.
 
+  Lemma LocalCtxValid_LCEffEqual : forall {F F' L1 L2 f} {g : Typ -> Typ},
+      LocalCtxValid F' L1 ->
+      LocalCtxValid F (map f L2) ->
+      LCEffEqual (size F') L1 L2 ->
+      size F = size F' ->
+      (exists g, forall t sz, f (t, sz) = (g t, sz)) ->
+      LocalCtxValid F (map f L1).
+  Proof.
+    unfold LocalCtxValid.
+    unfold LCEffEqual.
+    intros.
+    destructAll.
+    rewrite Forall_forall in *.
+    intros.
+    destruct_prs.
+    match goal with
+    | [ H : List.In _ ?L |- _ ] => apply in_map_inv in H
+    end.
+    destructAll.
+    match goal with
+    | [ H : List.In _ ?L, H' : forall _, List.In _ ?L -> _ |- _ ] =>
+        specialize (H' _ H)
+    end.
+    simpl in *.
+    destruct_prs.
+    destructAll.
+    match goal with
+    | [ H : context[?F _ = _], H' : _ = ?F (?A, ?B) |- _ ] =>
+        generalize (H A B)
+    end.
+    intros; destructAll.
+    match goal with
+    | [ H : _ = ?A, H' : ?A = _ |- _ ] =>
+        rewrite <-H in H'; inv H'
+    end.
+    match goal with
+    | [ H : ?A = _ |- context[SizeValid ?A] ] =>
+        rewrite H
+    end.
+    split; auto.
+    match goal with
+    | [ H : List.In _ _ |- _ ] => apply In_nth_error in H
+    end.
+    destructAll.
+    match goal with
+    | [ H : nth_error ?L ?IDX = Some _,
+        H' : Forall2 _ ?L ?L2 |- _ ] =>
+        assert (exists g, nth_error L2 IDX = Some g)
+    end.
+    {
+      apply nth_error_some_exists.
+      match goal with
+      | [ H : Forall2 _ _ _ |- _ ] => rewrite <-(Forall2_length _ _ _ H)
+      end.
+      eapply nth_error_Some_length; eauto.
+    }
+    destructAll.
+    destruct_prs.
+    match goal with
+    | [ H : Forall2 _ ?L1 ?L2,
+        H' : nth_error ?L1 _ = Some _,
+        H'' : nth_error ?L2 _ = Some _ |- _ ] =>
+      specialize (forall2_nth_error _ _ _ _ _ _ H H' H'')
+    end.
+    intros; simpl in *.
+    destructAll.
+    match goal with
+    | [ H : nth_error ?L2 ?IDX = Some ?X,
+        H' : Forall2 _ ?L ?L2, H'' : (_, _) = ?F (_, _) |- _ ] =>
+        assert (List.In (F X) (map F L2))
+    end.
+    { apply in_map. eapply nth_error_In; eauto. }
+    match goal with
+    | [ H : List.In _ ?L2,
+        H'' : forall _, List.In _ ?L2 -> _ |- _ ] =>
+        specialize (H'' _ H)
+    end.
+    simpl in *.
+    repeat match goal with
+    | [ H : context[?F _ = _], H' : context[?F (?A, ?B)] |- _ ] =>
+        rewrite (H A B) in H'
+    end.
+    destructAll.
+    auto.
+  Qed.
+
   Lemma MemUnpack_HasTypeInstruction S M F L tf tl  es t1 t2 L' :
     HasTypeInstruction S M F L [MemUnpack tf tl es] (Arrow t1 t2) L' ->
     exists ts tau1 tau2 taurho qrho qf L'',
@@ -4898,6 +6588,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
 
       Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) ts /\
       QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+      QualValid (qual F) (get_hd (linear F)) /\
+      QualValid (qual F) qf /\
 
       let F := update_linear_ctx (set_hd qf (linear F)) F in
       let F1 := update_label_ctx ((tau2, L'') :: label F) F in
@@ -4913,7 +6605,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
            (subst_ext (weak SLoc) tau2))
         (subst_ext (weak SLoc) L') /\
       LCEffEqual (size F) (add_local_effects L tl) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L tl) /\
+      LocalCtxValid F L''.
   Proof.
     assert (Heq : [MemUnpack tf tl es] = [MemUnpack tf tl es]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -4924,10 +6618,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - simpl in *. inv Heq. inv Heq1.
       exists []. do 6 eexists; repeat split.
       now constructor.
-      eapply QualLeq_Refl. simpl in *.
+      eapply QualLeq_Refl.
+      auto.
+      auto.
+      simpl in *.
       rewrite !set_get_hd. destruct F; simpl in *; try eassumption.
       all: try apply LCEffEqual_refl.
       destruct F; subst; simpl in *; auto.
+      all: eapply LocalCtxValid_Function_Ctx; eauto.
+      all: destruct F; auto.
     - eapply elt_eq_unit in Heq. destructAll. eapply Empty_HasTypeInstruction in Htyp1.
       destructAll. eauto.
       simpl. setoid_rewrite <- SplitStoreTypings_Empty_eq; eauto.
@@ -4935,56 +6634,121 @@ Theorem get_localtype_same_len_None l1 l2 n:
       simpl in *; destructAll.
       do 7 eexists; repeat split; eauto.
       -- eapply ChangeBegLocalTyp; eauto.
-         apply LCEffEqual_sym.
-         destruct F; subst; simpl in *.
-         rewrite sizepairs_debruijn_weak_loc; auto.
-         apply LCEffEqual_subst_weak_loc; auto.
+         --- match goal with
+             | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_FirstLocalValid in H
+             end.
+             eapply LocalCtxValid_LCEffEqual; eauto.
+             ---- destruct F; subst; simpl in *; auto.
+                  rewrite sizepairs_debruijn_weak_loc; auto.
+             ---- eexists.
+                  intros.
+                  erewrite weak_non_size_no_effect_on_size; eauto.
+                  2:{
+                    eapply single_weak_debruijn_weak_conds.
+                  }
+                  solve_ineqs.
+         --- apply LCEffEqual_sym.
+             destruct F; subst; simpl in *.
+             rewrite sizepairs_debruijn_weak_loc; auto.
+             apply LCEffEqual_subst_weak_loc; auto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects.
          destruct F; subst; simpl in *; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+             all: destruct F; auto.
+         --- destruct F; simpl in *; auto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       destruct F; simpl in *. destructAll.
       do 7 eexists.
-      split; [| split; [| split; [| split ; [| split; [| split ] ] ] ]].
+      split; [| split; [| split; [| split ; [| split; [| split; [| split; [| split]] ] ] ] ]].
       rewrite app_assoc. reflexivity.
       rewrite app_assoc. reflexivity.
       reflexivity.
 
       eapply Forall_app. split; [ | eassumption ].
 
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
+
+      auto.
+      auto.
 
       rewrite set_set_hd in *.
 
       eassumption.
 
       split; auto.
+      split; auto.
+      split; auto.
+      all: eapply LocalCtxValid_Function_Ctx; eauto.
       
     - start_lceff_subgoals.
       do 7 eexists; repeat split; eauto.
       -- eapply ChangeBegLocalTyp; eauto.
-         destruct F; subst; simpl in *.
-         rewrite sizepairs_debruijn_weak_loc; auto.
-         apply LCEffEqual_subst_weak_loc; auto.
+         all: destruct F; subst; simpl in *.
+         --- match goal with
+             | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_FirstLocalValid in H
+             end.
+             eapply LocalCtxValid_LCEffEqual; eauto.
+             ---- simpl.
+                  apply LCEffEqual_sym; auto.
+             ---- simpl.
+                  rewrite sizepairs_debruijn_weak_loc; auto.
+             ---- eexists.
+                  intros.
+                  erewrite weak_non_size_no_effect_on_size; eauto.
+                  2:{
+                    eapply single_weak_debruijn_weak_conds.
+                  }
+                  solve_ineqs.
+         --- rewrite sizepairs_debruijn_weak_loc; auto.
+             apply LCEffEqual_subst_weak_loc; auto.
       -- eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_add_local_effects.
          destruct F; subst; simpl in *.
          apply LCEffEqual_sym; auto.
+      -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+         --- eapply LocalCtxValid_Function_Ctx; eauto.
+             all: destruct F; auto.
+         --- destruct F; simpl in *.
+             apply LCEffEqual_sym; auto.
     - start_lceff_subgoals.
       do 7 eexists; repeat split; eauto.
       -- eapply ChangeEndLocalTyp; eauto.
-         destruct F; subst; simpl in *.
-         rewrite sizepairs_debruijn_weak_loc; auto.
-         apply LCEffEqual_subst_weak_loc; auto.
+         all: destruct F; subst; simpl in *.
+         --- match goal with
+             | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_SecondLocalValid in H
+             end.
+             eapply LocalCtxValid_LCEffEqual; eauto.
+             ---- simpl.
+                  apply LCEffEqual_sym; auto.
+             ---- simpl.
+                  rewrite sizepairs_debruijn_weak_loc; auto.
+             ---- eexists.
+                  intros.
+                  erewrite weak_non_size_no_effect_on_size; eauto.
+                  2:{
+                    eapply single_weak_debruijn_weak_conds.
+                  }
+                  solve_ineqs.
+         --- rewrite sizepairs_debruijn_weak_loc; auto.
+             apply LCEffEqual_subst_weak_loc; auto.
       -- eapply LCEffEqual_trans; eauto.
          destruct F; subst; simpl in *; auto.
       -- destruct F; subst; simpl in *.
          eapply LCEffEqual_trans; eauto.
          apply LCEffEqual_sym; auto.
+
+         Unshelve.
+         all: intros; auto.
   Qed.
 
   Lemma StructMalloc_HasTypeInstruction S M F L szs q t1 t2 L' :
@@ -4996,6 +6760,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
         (fun (tau : Typ) (sz : Size) =>
            exists tausz : Size,
              sizeOfType (type F) tau = Some tausz /\
+             SizeValid (typing.size F) tausz /\
              SizeLeq (typing.size F) tausz sz = Some true) taus szs /\
         Forall (fun sz => SizeValid (size F) sz) szs /\
         forallb (NoCapsTyp (heapable F)) taus = true /\
@@ -5266,10 +7031,10 @@ Theorem get_localtype_same_len_None l1 l2 n:
       NoCapsPretype (heapable F) p = true /\
       NoCapsTyp (heapable (update_type_ctx ((sz, q, Heapable) :: type F) F)) (QualT hp hq) = true /\
       let tau := subst_ext (Kind:=Kind) (ext SPretype p id) (QualT hp hq) in
-      psi = Ex sz qα (subst_ext (Kind:= Kind) (weak SLoc) (QualT hp hq)) /\
+      psi = Ex sz qα (QualT hp hq) /\
       q = qα /\
       t1 = ts ++ [tau] /\
-      t2 = ts ++ [QualT (ExLoc (QualT (RefT W (LocV 0) psi) q)) q]  /\
+      t2 = ts ++ [QualT (ExLoc (QualT (RefT W (LocV 0) (Ex sz qα (subst_ext (Kind:= Kind) (weak SLoc) (QualT hp hq)))) q)) q]  /\
       LCEffEqual (size F) L L'.
   Proof.
     assert (Heq : [ExistPack p psi q] = [ExistPack p psi q]) by reflexivity.
@@ -5402,6 +7167,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
       M.is_empty (LinTyp S) = true /\
       (forall cap l ht, p <> CapT cap l ht) /\
       (forall cap l ht, p <> RefT cap l ht) /\
+      (forall n, p <> TVar n) /\
       QualLeq (qual F) qold qnew = Some true /\
       t1 = ts ++ [QualT p qold] /\
       t2 = ts ++ [QualT p qnew] /\
@@ -5431,10 +7197,10 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
       destruct F; simpl in *. destructAll.
       do 3 eexists. split; [| split; [| split; [| split; [| split; [| split; [| split ] ] ] ] ] ].
-      eassumption. eassumption. eassumption. eassumption.
+      eassumption. eassumption. eassumption. eassumption. eassumption.
       rewrite app_assoc. reflexivity.
       rewrite app_assoc. reflexivity.
-      auto. eassumption.
+      auto.
     - solve_lceff_subgoals ltac:(3).
     - solve_lceff_subgoals ltac:(3).
   Qed.
@@ -5501,8 +7267,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
       do 3 eexists; repeat split; eauto.
       eapply SplitStoreTypings_Empty_eq in H; eauto.
       inv H.
-      destruct H9.
-      eapply is_empty_eq_map in H.
+      destructAll.
+      match goal with
+      | [ H : eq_map _ _ |- _ ] =>
+          eapply is_empty_eq_map in H
+      end.
       eauto.
       eapply LCEffEqual_trans; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
@@ -5538,8 +7307,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
       do 8 eexists; repeat split; eauto.
       eapply SplitStoreTypings_Empty_eq in H; eauto.
       inv H.
-      destruct H4.
-      eapply is_empty_eq_map in H.
+      destructAll.
+      match goal with
+      | [ H : eq_map _ _ |- _ ] =>
+          eapply is_empty_eq_map in H
+      end.
       eauto.
       eapply LCEffEqual_trans; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
@@ -5565,6 +7337,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
       nth_error szs n = Some sz /\
       sizeOfType (type F) tau = Some tau_sz /\
       SizeLeq (size F) tau_sz sz = Some true /\
+      SizeValid (size F) tau_sz /\
       TypeValid F tau /\
       NoCapsTyp (heapable F) tau = true /\
       (QualLeq (qual F) Linear q = Some true \/ tau = QualT p_old q_old) /\
@@ -5584,8 +7357,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
       do 12 eexists. repeat split; eauto.
       eapply SplitStoreTypings_Empty_eq in H; eauto.
       inv H.
-      destruct H4.
-      eapply is_empty_eq_map in H.
+      destructAll.
+      match goal with
+      | [ H : eq_map _ _ |- _ ] =>
+          eapply is_empty_eq_map in H
+      end.
       eauto.
       eapply LCEffEqual_trans; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
@@ -5596,9 +7372,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
       destruct F; simpl in *; eauto.
       destruct F; simpl in *; eauto.
       destruct F; simpl in *.
-      replace_typevalid_parts label ret size type location.
-      apply TypeValid_linear.
-      eauto.
+      auto.
+      eapply TypeValid_Function_Ctx; destruct F; eauto.
+      split.
+      destruct F; simpl in *; eauto.
+      split.
       destruct F; simpl in *; eauto.
       destruct F; simpl in *; eauto.
     - solve_lceff_subgoals ltac:(12).
@@ -5615,6 +7393,7 @@ Theorem get_localtype_same_len_None l1 l2 n:
       ReplaceAtIdx n taus tau = Some (taus', tau_old) /\
       nth_error szs n = Some sz /\
       sizeOfType (type F) tau = Some tau_sz /\
+      SizeValid (size F) tau_sz /\
       SizeLeq (size F) tau_sz sz = Some true /\
       TypeValid F tau /\
       NoCapsTyp (heapable F) tau = true /\
@@ -5635,8 +7414,11 @@ Theorem get_localtype_same_len_None l1 l2 n:
       do 10 eexists. repeat split; eauto.
       eapply SplitStoreTypings_Empty_eq in H; eauto.
       inv H.
-      destruct H4.
-      eapply is_empty_eq_map in H.
+      destructAll.
+      match goal with
+      | [ H : eq_map _ _ |- _ ] =>
+          eapply is_empty_eq_map in H
+      end.
       eauto.
       eapply LCEffEqual_trans; eauto.
     - subst. inv Heq1. edestruct IHHtyp; eauto. destructAll.
@@ -5645,13 +7427,13 @@ Theorem get_localtype_same_len_None l1 l2 n:
       rewrite app_assoc; reflexivity.
       destruct F; simpl in *; eauto.
       destruct F; simpl in *; eauto.
+      destruct F; simpl in *; eauto.
       destruct F; simpl in *.
       replace_typevalid_parts label ret size type location.
       apply TypeValid_linear.
       eauto.
       destruct F; simpl in *; eauto.
       destruct F; simpl in *; eauto.
-      destruct F; subst; simpl in *; auto.
     - solve_lceff_subgoals ltac:(10).
     - solve_lceff_subgoals ltac:(10).
   Qed.
@@ -5661,6 +7443,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
     (exists t taus1 taus2 qv l tausv qf L'',
         Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
         QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+        QualValid (qual F) (get_hd (linear F)) /\
+        QualValid (qual F) qf /\
         let F  := update_linear_ctx (set_hd qf (linear F)) F in
         let F1 := update_label_ctx ((taus2, L'') :: label F) F in
         let F2 := update_linear_ctx (Cons_p (QualConst Unrestricted) (linear F)) F1 in
@@ -5675,11 +7459,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
         t1 = t ++ taus1 ++ [QualT (RefT W l (VariantType tausv)) qv] /\
         t2 = t ++ taus2 /\
         LCEffEqual (size F) (add_local_effects L tl) L' /\
-        LCEffEqual (size F) L' L'')
+        LCEffEqual (size F) L' L'' /\
+        LocalCtxValid F (add_local_effects L tl) /\
+        LocalCtxValid F L'')
       \/
       (exists t taus1 taus2 q' qv cap l tausv qf L'',
         Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
         QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+        QualValid (qual F) (get_hd (linear F)) /\
+        QualValid (qual F) qf /\
         let F  := update_linear_ctx (set_hd qf (linear F)) F in
         let F1 := update_label_ctx ((taus2, L'') :: label F) F in
         let F2 := update_linear_ctx (Cons_p (QualConst Unrestricted) (set_hd q' (linear F))) F1 in
@@ -5693,11 +7481,13 @@ Theorem get_localtype_same_len_None l1 l2 n:
         QualLeq (qual F) q Unrestricted = Some true /\
         QualValid (qual F) q /\
         QualValid (qual F) qv /\
+        QualValid (qual F) q' /\
         t1 = t ++ taus1 ++ [QualT (RefT cap l (VariantType tausv)) qv] /\
         t2 = t ++ [QualT (RefT cap l (VariantType tausv)) qv] ++ taus2 /\
         LCEffEqual (size F) (add_local_effects L tl) L' /\
-        LCEffEqual (size F) L' L'')
-    .
+        LCEffEqual (size F) L' L'' /\
+        LocalCtxValid F (add_local_effects L tl) /\
+        LocalCtxValid F L'').
     Proof.
     assert (Heq : [VariantCase q ht tf tl es] = [VariantCase q ht tf tl es]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -5727,45 +7517,61 @@ Theorem get_localtype_same_len_None l1 l2 n:
         repeat split; eauto.
         eapply SplitStoreTypings_Empty_eq in H; eauto.
         inv H.
-        destruct H6.
-        eapply is_empty_eq_map in H.
+        destructAll.
+        match goal with
+        | [ H : eq_map _ _ |- _ ] =>
+            eapply is_empty_eq_map in H
+        end.
         eauto.
         eapply Forall2_monotonic; eauto; intros.
         simpl in *.
         eapply Proper_HasTypeInstruction; eauto.
         2:{
           eapply ChangeBegLocalTyp; eauto.
-          destruct F; subst; simpl in *.
-          apply LCEffEqual_sym; auto.
+          all: destruct F; subst; simpl in *.
+          - eapply LocalCtxValid_Function_Ctx; eauto.
+          - apply LCEffEqual_sym; auto.
         }
         eapply SplitStoreTypings_Empty_eq in H; eauto.
         eapply StoreTyping_Equiv; auto.
         eapply LCEffEqual_trans; eauto.
         apply LCEffEqual_add_local_effects.
         destruct F; subst; simpl in *; auto.
+        eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+           all: destruct F; auto.
+        ++ destruct F; simpl in *; auto.
       + right. inv Heq1. simpl in *. destructAll. do 10 eexists.
         repeat split; eauto.
         eapply SplitStoreTypings_Empty_eq in H; eauto.
         inv H.
-        destruct H6.
-        eapply is_empty_eq_map in H.
+        destructAll.
+        match goal with
+        | [ H : eq_map _ _ |- _ ] =>
+            eapply is_empty_eq_map in H
+        end.
         eauto.
         eapply Forall2_monotonic; eauto; intros.
         simpl in *.
         eapply Proper_HasTypeInstruction; eauto.
         2:{
           eapply ChangeBegLocalTyp; eauto.
-          destruct F; subst; simpl in *.
-          apply LCEffEqual_sym; auto.
+          all: destruct F; subst; simpl in *.
+          - eapply LocalCtxValid_Function_Ctx; eauto.
+          - apply LCEffEqual_sym; auto.
         }
         eapply SplitStoreTypings_Empty_eq in H; eauto.
         eapply StoreTyping_Equiv; eauto.
         eapply LCEffEqual_trans; eauto.
         apply LCEffEqual_add_local_effects.
         destruct F; subst; simpl in *; auto.
+        eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+           all: destruct F; auto.
+        ++ destruct F; simpl in *; auto.
     - subst. inv Heq1. edestruct IHHtyp; eauto; destructAll; simpl in *; destructAll.
       + left. unfold F' in *. destruct F; subst; simpl in *. exists (taus ++ x); do 7 eexists. repeat split.
-        4:{
+        6:{
           rewrite set_set_hd in *; eauto.
         }
         all: eauto.
@@ -5777,13 +7583,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
            rewrite get_set_hd in *; auto.
         -- rewrite app_assoc; auto.
         -- rewrite app_assoc; auto.
+        -- rewrite set_set_hd in *; auto.
+        -- rewrite set_set_hd in *; auto.
       + right. unfold F' in *. destruct F; subst; simpl in *. exists (taus ++ x). do 3 eexists.
         match goal with
         | [ |- context[QualT (RefT _ _ (VariantType _)) ?Q] ] =>
           exists Q
         end.
         do 4 eexists. eexists. repeat split.
-        6:{ repeat rewrite set_set_hd in *; eauto. }
+        8:{ repeat rewrite set_set_hd in *; eauto. }
         1:{
           rewrite Forall_app; split; [ | eauto ].
           prepare_Forall.
@@ -5795,7 +7603,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
            rewrite get_set_hd in *; auto.
         -- rewrite get_set_hd in *; auto.
         -- rewrite app_assoc; auto.
-        -- rewrite app_assoc; auto. 
+        -- rewrite app_assoc; auto.
+        -- rewrite set_set_hd in *; auto.
+        -- rewrite set_set_hd in *; auto.
     - start_lceff_subgoals.
       destruct IHHtyp; destructAll.
       -- left; do 8 eexists; repeat split; eauto.
@@ -5809,11 +7619,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
              end.
              intros; simpl in *.
              eapply ChangeBegLocalTyp; eauto.
-             destruct F; subst; simpl in *; auto.
+             all: destruct F; subst; simpl in *; auto.
+             eapply LocalCtxValid_Function_Ctx; eauto.
          --- eapply LCEffEqual_trans; eauto.
              apply LCEffEqual_add_local_effects.
              destruct F; subst; simpl in *.
              apply LCEffEqual_sym; auto.
+         --- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+             ---- eapply LocalCtxValid_Function_Ctx; eauto.
+                  all: destruct F; auto.
+             ---- destruct F; simpl in *.
+                  apply LCEffEqual_sym; auto.
       -- right; do 10 eexists; repeat split; eauto.
          --- apply forall2_nth_error_inv; [ | eapply Forall2_length; eauto ].
              intros.
@@ -5825,11 +7641,17 @@ Theorem get_localtype_same_len_None l1 l2 n:
              end.
              intros; simpl in *.
              eapply ChangeBegLocalTyp; eauto.
-             destruct F; subst; simpl in *; auto.
+             all: destruct F; subst; simpl in *; auto.
+             eapply LocalCtxValid_Function_Ctx; eauto.
          --- eapply LCEffEqual_trans; eauto.
              apply LCEffEqual_add_local_effects.
              destruct F; subst; simpl in *.
              apply LCEffEqual_sym; auto.
+         --- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+             ---- eapply LocalCtxValid_Function_Ctx; eauto.
+                  all: destruct F; auto.
+             ---- destruct F; simpl in *.
+                  apply LCEffEqual_sym; auto.
     - start_lceff_subgoals.
       destruct IHHtyp; destructAll.
       -- left; do 9 eexists; repeat split; eauto.
@@ -5843,7 +7665,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
              end.
              intros; simpl in *.
              eapply ChangeEndLocalTyp; eauto.
-             destruct F; subst; simpl in *; auto.
+             all: destruct F; subst; simpl in *; auto.
+             eapply LocalCtxValid_Function_Ctx; eauto.
          --- eapply LCEffEqual_trans; eauto.
              destruct F; subst; simpl in *; auto.
          --- eapply LCEffEqual_trans; eauto.
@@ -5860,7 +7683,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
              end.
              intros; simpl in *.
              eapply ChangeEndLocalTyp; eauto.
-             destruct F; subst; simpl in *; auto.
+             all: destruct F; subst; simpl in *; auto.
+             eapply LocalCtxValid_Function_Ctx; eauto.
          --- eapply LCEffEqual_trans; eauto.
              destruct F; subst; simpl in *; auto.
          --- eapply LCEffEqual_trans; eauto.
@@ -5875,6 +7699,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
       tausv' = VariantType tausv /\
       Forall (fun '(QualT _ q) => QualLeq (qual Forig) q qf = Some true) alpha /\
       QualLeq (qual Forig) (get_hd (linear Forig)) qf = Some true /\
+      QualValid (qual Forig) (get_hd (linear Forig)) /\
+      QualValid (qual Forig) qf /\
       let F := update_linear_ctx (set_hd qf (linear Forig)) Forig in
       M.is_empty (LinTyp S) = true /\
       QualLeq (qual F) qv q' = Some true /\
@@ -5885,10 +7711,13 @@ Theorem get_localtype_same_len_None l1 l2 n:
       Forall2 (fun es' tau => HasTypeInstruction S M F2 L es' (Arrow (taus1 ++ [tau]) taus2) L') es tausv /\
       Forall (fun '(QualT _ q0) => QualLeq (qual F) q0 Unrestricted = Some true) tausv /\
       QualValid (qual F) qv /\
+      QualValid (qual F) q' /\
       t1 = alpha ++ taus1 ++ [QualT (RefT cap l (VariantType tausv)) qv] /\
       t2 = alpha ++ [QualT (RefT cap l (VariantType tausv)) qv] ++ taus2 /\
       LCEffEqual (size F) (add_local_effects L tl) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L tl) /\
+      LocalCtxValid F L''.
   Proof.
     intros.
     apply VariantCase_HasTypeInstruction in H.
@@ -5906,6 +7735,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
       tausv' = VariantType tausv /\
       Forall (fun '(QualT _ q) => QualLeq (qual Forig) q qf = Some true) alpha /\
       QualLeq (qual Forig) (get_hd (linear Forig)) qf = Some true /\
+      QualValid (qual Forig) (get_hd (linear Forig)) /\
+      QualValid (qual Forig) qf /\
       let F := update_linear_ctx (set_hd qf (linear Forig)) Forig in
       M.is_empty (LinTyp S) = true /\
       tf = Arrow taus1 taus2 /\
@@ -5917,7 +7748,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
       t1 = alpha ++ taus1 ++ [QualT (RefT W l (VariantType tausv)) qv] /\
       t2 = alpha ++ taus2 /\
       LCEffEqual (size F) (add_local_effects L tl) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L tl) /\
+      LocalCtxValid F L''.
   Proof.
     intros.
     apply VariantCase_HasTypeInstruction in H.
@@ -5926,6 +7759,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
       repeat split; eauto.
     - destruct Forig; subst; simpl in *; subst.
       exfalso; eapply QualLeq_Const_False; eauto.
+
+    Unshelve.
+    all: auto.
   Qed.
 
   Lemma ExistUnpack_HasTypeInstruction S M F L q ht tf tl es t1 t2 L' :
@@ -5933,6 +7769,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
     (exists t qf taus1 taus2 tau qv l sz qα L'',
         Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
         QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+        QualValid (qual F) (get_hd (linear F)) /\
+        QualValid (qual F) qf /\
         let F := update_linear_ctx (set_hd qf (linear F)) F in
         let F1 := update_label_ctx ((taus2, L'') :: label F) F in
         let F2 := update_linear_ctx (Cons_p (QualConst Unrestricted) (linear F)) F1 in
@@ -5948,11 +7786,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
         t1 = t ++ taus1 ++ [QualT (RefT W l (Ex sz qα tau)) qv] /\
         t2 = t ++ taus2 /\
         LCEffEqual (size F) (add_local_effects L tl) L' /\
-        LCEffEqual (size F) L' L'')
+        LCEffEqual (size F) L' L'' /\
+        LocalCtxValid F (add_local_effects L tl) /\
+        LocalCtxValid F L'')
       \/
     (exists t taus1 taus2 tau q' qv l sz qα q_ex p_ex L'' qf cap,
         Forall (fun '(QualT _ q) => QualLeq (qual F) q qf = Some true) t /\
         QualLeq (qual F) (get_hd (linear F)) qf = Some true /\
+        QualValid (qual F) (get_hd (linear F)) /\
+        QualValid (qual F) qf /\
         ht = (Ex sz qα tau) /\
         tf = Arrow taus1 taus2 /\
         let F := update_linear_ctx (set_hd qf (linear F)) F in
@@ -5965,13 +7807,16 @@ Theorem get_localtype_same_len_None l1 l2 n:
         QualLeq (qual F) q Unrestricted = Some true /\
         QualValid (qual F) q /\
         QualValid (qual F) qv /\
+        QualValid (qual F) q' /\
         QualLeq (qual F) qv q' = Some true /\
         QualLeq (qual F) (get_hd (linear F)) q' = Some true /\
         M.is_empty (LinTyp S) = true /\
         t1 = t ++ taus1 ++ [QualT (RefT cap l (Ex sz qα tau)) qv] /\
         t2 = t ++ [QualT (RefT cap l (Ex sz qα tau)) qv] ++ taus2 /\
         LCEffEqual (size F) (add_local_effects L tl) L' /\
-        LCEffEqual (size F) L' L'').
+        LCEffEqual (size F) L' L'' /\
+        LocalCtxValid F (add_local_effects L tl) /\
+        LocalCtxValid F L'').
   Proof.
     assert (Heq : [ExistUnpack q ht tf tl es] = [ExistUnpack q ht tf tl es]) by reflexivity.
     assert (Heq' : Arrow t1 t2 = Arrow t1 t2) by reflexivity.
@@ -5983,10 +7828,12 @@ Theorem get_localtype_same_len_None l1 l2 n:
     - right. simpl in *. inv Heq. inv Heq1.
       destruct F; simpl in *.
       exists []. do 13 eexists. repeat split.
-      all: try eauto.
-      -- rewrite set_set_hd; auto.
+      5: rewrite set_set_hd; eauto.
+      all: eauto.
       -- rewrite get_set_hd; apply QualLeq_Refl.
       -- apply LCEffEqual_refl.
+      -- eapply LocalCtxValid_Function_Ctx; eauto.
+      -- eapply LocalCtxValid_Function_Ctx; eauto.
     - left. simpl in *. inv Heq. inv Heq1.
       destruct F; simpl in *.
       exists []. exists (get_hd linear). do 8 eexists; repeat split; try rewrite set_get_hd; eauto.
@@ -6000,34 +7847,67 @@ Theorem get_localtype_same_len_None l1 l2 n:
         repeat split; eauto.
         eapply SplitStoreTypings_Empty_eq in H; eauto.
         inv H.
-        destruct H6.
-        eapply is_empty_eq_map in H.
+        destructAll.
+        match goal with
+        | [ H : eq_map _ _ |- _ ] =>
+            eapply is_empty_eq_map in H
+        end.
         eauto.
         eapply Proper_HasTypeInstruction; eauto.
         eapply SplitStoreTypings_Empty_eq in H; eauto.
         2:{
           eapply ChangeBegLocalTyp; eauto.
-          destruct F; subst; simpl in *.
-          rewrite sizepairs_debruijn_weak_pretype.
-          apply LCEffEqual_sym.
-          apply LCEffEqual_subst_weak_pretype; auto.
+          all: destruct F; subst; simpl in *.
+          - match goal with
+            | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_FirstLocalValid in H
+            end.
+            eapply LocalCtxValid_LCEffEqual; eauto.
+            -- simpl.
+               rewrite sizepairs_debruijn_weak_pretype; auto.
+            -- eexists.
+               intros.
+               erewrite weak_non_size_no_effect_on_size; eauto.
+               2:{
+                 eapply single_weak_debruijn_weak_conds.
+               }
+               solve_ineqs.
+          - rewrite sizepairs_debruijn_weak_pretype.
+            apply LCEffEqual_sym.
+            apply LCEffEqual_subst_weak_pretype; auto.
         }
         eapply StoreTyping_Equiv; eauto.
         eapply LCEffEqual_trans; eauto.
         apply LCEffEqual_add_local_effects.
         destruct F; subst; simpl in *; auto.
+        eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+           all: destruct F; auto.
+        ++ destruct F; simpl in *; auto.
       + right. inv Heq1. simpl in *. destructAll. do 14 eexists.
         repeat split.
-        3:{
+        5:{
           eapply Proper_HasTypeInstruction.
           2-4,6-7: eauto.
           3:{
             destruct F; subst; simpl in *.
             eapply ChangeBegLocalTyp; eauto.
-            simpl.
-            rewrite sizepairs_debruijn_weak_pretype.
-            apply LCEffEqual_sym.
-            apply LCEffEqual_subst_weak_pretype; auto.
+            all: simpl.
+            - match goal with
+              | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_FirstLocalValid in H
+              end.
+              eapply LocalCtxValid_LCEffEqual; eauto.
+              -- simpl.
+                 rewrite sizepairs_debruijn_weak_pretype; auto.
+              -- eexists.
+                 intros.
+                 erewrite weak_non_size_no_effect_on_size; eauto.
+                 2:{
+                   eapply single_weak_debruijn_weak_conds.
+                 }
+                 solve_ineqs.
+            - rewrite sizepairs_debruijn_weak_pretype.
+              apply LCEffEqual_sym.
+              apply LCEffEqual_subst_weak_pretype; auto.
           }
           eapply SplitStoreTypings_Empty_eq in H; eauto.
           eapply StoreTyping_Equiv; eauto.
@@ -6036,17 +7916,24 @@ Theorem get_localtype_same_len_None l1 l2 n:
         all: eauto.
         -- eapply SplitStoreTypings_Empty_eq in H; eauto.
            inv H.
-           destruct H6.
-           eapply is_empty_eq_map in H.
+           destructAll.
+           match goal with
+           | [ H : eq_map _ _ |- _ ] =>
+               eapply is_empty_eq_map in H
+           end.
            eauto.
         -- destruct F; subst; simpl in *.
            eapply LCEffEqual_trans; eauto.
            apply LCEffEqual_add_local_effects; auto.
+        -- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+           --- eapply LocalCtxValid_Function_Ctx; eauto.
+               all: destruct F; auto.
+           --- destruct F; simpl in *; auto.
     - subst. inv Heq1. edestruct IHHtyp; eauto; destructAll; simpl in *; destructAll.
       + left.
         destruct F; subst; simpl in *.
         exists (taus ++ x). do 9 eexists. repeat split.
-        4:{ rewrite set_set_hd in *; eauto. }
+        6:{ rewrite set_set_hd in *; eauto. }
         all: try eauto.
         all: try rewrite app_assoc; try reflexivity.
         * apply Forall_app; split; [ | eauto ].
@@ -6055,44 +7942,101 @@ Theorem get_localtype_same_len_None l1 l2 n:
           rewrite get_set_hd in *; auto.
         * eapply QualLeq_Trans; eauto.
           rewrite get_set_hd in *; auto.
+        * rewrite set_set_hd in *; auto.
+        * rewrite set_set_hd in *; auto.
       + right. destruct F; subst; simpl in *; exists (taus ++ x). do 13 eexists. repeat split; rewrite set_set_hd in *; rewrite get_set_hd in *.
         1:{
           apply Forall_app; split; [ | eauto ].
           prepare_Forall.
           eapply QualLeq_Trans; eauto.
         }
+        13: rewrite app_assoc; eauto.
         all: eauto.
         * eapply QualLeq_Trans; eauto.
         * rewrite set_set_hd in *; auto.
-        * rewrite app_assoc; reflexivity.
-        * rewrite app_assoc; reflexivity.
+        * rewrite app_assoc; reflexivity. 
     - start_lceff_subgoals.
       case IHHtyp; [ left | right ]; destructAll.
       -- do 10 eexists; repeat split; eauto.
          --- eapply ChangeBegLocalTyp; eauto.
-             destruct F; subst; simpl in *.
-             rewrite sizepairs_debruijn_weak_pretype.
-             apply LCEffEqual_subst_weak_pretype; auto.
+             all: destruct F; subst; simpl in *.
+             ---- match goal with
+                  | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_FirstLocalValid in H
+                  end.
+                  eapply LocalCtxValid_LCEffEqual; eauto.
+                  ----- simpl.
+                        apply LCEffEqual_sym; auto.
+                  ----- simpl.
+                        rewrite sizepairs_debruijn_weak_pretype; auto.
+                  ----- eexists.
+                        intros.
+                        erewrite weak_non_size_no_effect_on_size; eauto.
+                        2:{
+                          eapply single_weak_debruijn_weak_conds.
+                        }
+                        solve_ineqs.
+             ---- rewrite sizepairs_debruijn_weak_pretype.
+                  apply LCEffEqual_subst_weak_pretype; auto.
          --- eapply LCEffEqual_trans; eauto.
              apply LCEffEqual_add_local_effects.
              destruct F; subst; simpl in *.
              apply LCEffEqual_sym; auto.
+         --- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+             ---- eapply LocalCtxValid_Function_Ctx; eauto.
+                  all: destruct F; auto.
+             ---- destruct F; simpl in *; auto.
+                  apply LCEffEqual_sym; auto.
       -- do 14 eexists; repeat split; eauto.
          --- eapply ChangeBegLocalTyp; eauto.
-             destruct F; subst; simpl in *.
-             rewrite sizepairs_debruijn_weak_pretype.
-             apply LCEffEqual_subst_weak_pretype; auto.
+             all: destruct F; subst; simpl in *.
+             ---- match goal with
+                  | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_FirstLocalValid in H
+                  end.
+                  eapply LocalCtxValid_LCEffEqual; eauto.
+                  ----- simpl.
+                        apply LCEffEqual_sym; auto.
+                  ----- simpl.
+                        rewrite sizepairs_debruijn_weak_pretype; auto.
+                  ----- eexists.
+                        intros.
+                        erewrite weak_non_size_no_effect_on_size; eauto.
+                        2:{
+                          eapply single_weak_debruijn_weak_conds.
+                        }
+                        solve_ineqs.
+             ---- rewrite sizepairs_debruijn_weak_pretype.
+                  apply LCEffEqual_subst_weak_pretype; auto.
          --- eapply LCEffEqual_trans; eauto.
              apply LCEffEqual_add_local_effects.
              destruct F; subst; simpl in *.
              apply LCEffEqual_sym; auto.
+         --- eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+             ---- eapply LocalCtxValid_Function_Ctx; eauto.
+                  all: destruct F; auto.
+             ---- destruct F; simpl in *; auto.
+                  apply LCEffEqual_sym; auto.
     - start_lceff_subgoals.
       case IHHtyp; [ left | right ]; destructAll.
       -- do 10 eexists; repeat split; eauto.
          --- eapply ChangeEndLocalTyp; eauto.
-             destruct F; subst; simpl in *.
-             rewrite sizepairs_debruijn_weak_pretype.
-             apply LCEffEqual_subst_weak_pretype; auto.
+             all: destruct F; subst; simpl in *.
+             ---- match goal with
+                  | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_SecondLocalValid in H
+                  end.
+                  eapply LocalCtxValid_LCEffEqual; eauto.
+                  ----- simpl.
+                        apply LCEffEqual_sym; auto.
+                  ----- simpl.
+                        rewrite sizepairs_debruijn_weak_pretype; auto.
+                  ----- eexists.
+                        intros.
+                        erewrite weak_non_size_no_effect_on_size; eauto.
+                        2:{
+                          eapply single_weak_debruijn_weak_conds.
+                        }
+                        solve_ineqs.
+             ---- rewrite sizepairs_debruijn_weak_pretype.
+                  apply LCEffEqual_subst_weak_pretype; auto.
          --- eapply LCEffEqual_trans; eauto.
              destruct F; subst; simpl in *; auto.
          --- destruct F; subst; simpl in *; auto.
@@ -6100,14 +8044,32 @@ Theorem get_localtype_same_len_None l1 l2 n:
              apply LCEffEqual_sym; auto.
       -- do 14 eexists; repeat split; eauto.
          --- eapply ChangeEndLocalTyp; eauto.
-             destruct F; subst; simpl in *.
-             rewrite sizepairs_debruijn_weak_pretype.
-             apply LCEffEqual_subst_weak_pretype; auto.
+             all: destruct F; subst; simpl in *.
+             ---- match goal with
+                  | [ H : HasTypeInstruction _ _ ?F _ _ _ _ |- LocalCtxValid ?F _ ] => apply HasTypeInstruction_SecondLocalValid in H
+                  end.
+                  eapply LocalCtxValid_LCEffEqual; eauto.
+                  ----- simpl.
+                        apply LCEffEqual_sym; auto.
+                  ----- simpl.
+                        rewrite sizepairs_debruijn_weak_pretype; auto.
+                  ----- eexists.
+                        intros.
+                        erewrite weak_non_size_no_effect_on_size; eauto.
+                        2:{
+                          eapply single_weak_debruijn_weak_conds.
+                        }
+                        solve_ineqs.
+             ---- rewrite sizepairs_debruijn_weak_pretype.
+                  apply LCEffEqual_subst_weak_pretype; auto.
          --- destruct F; subst; simpl in *.
              eapply LCEffEqual_trans; eauto.
          --- destruct F; subst; simpl in *.
              eapply LCEffEqual_trans; eauto.
              apply LCEffEqual_sym; auto.
+
+  Unshelve.
+  all: intros; auto.
   Qed.
 
   Lemma ExistUnpackUnr_HasTypeInstruction S M Forig L t1 t2 L' ht tf tl es :
@@ -6116,6 +8078,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
     exists qf alpha cap l q' qv sz qa p_ex q_ex taus1 taus2 L'',
       Forall (fun '(QualT _ q) => QualLeq (qual Forig) q qf = Some true) alpha /\
       QualLeq (qual Forig) (get_hd (linear Forig)) qf = Some true /\
+      QualValid (qual Forig) (get_hd (linear Forig)) /\
+      QualValid (qual Forig) qf /\
       let F := update_linear_ctx (set_hd qf (linear Forig)) Forig in
       ht = Ex sz qa (QualT p_ex q_ex) /\
       t1 = alpha ++ taus1 ++ [QualT (RefT cap l (Ex sz qa (QualT p_ex q_ex))) qv] /\
@@ -6135,12 +8099,15 @@ Theorem get_localtype_same_len_None l1 l2 n:
               taus2))
         (debruijn.subst_ext (debruijn.weak subst.SPretype) L') /\
       QualValid (qual F) qv /\
+      QualValid (qual F) q' /\
       QualLeq (qual F) qv q' = Some true /\
       QualLeq (qual F) (get_hd (linear F)) q' = Some true /\
       QualLeq (qual F) q_ex Unrestricted = Some true /\
       M.is_empty (LinTyp S) = true /\
       LCEffEqual (size F) (add_local_effects L tl) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L tl) /\
+      LocalCtxValid F L''.
   Proof.
     intros.
     apply ExistUnpack_HasTypeInstruction in H.
@@ -6157,6 +8124,8 @@ Theorem get_localtype_same_len_None l1 l2 n:
     exists qf alpha l qv taus1 taus2 L'',
       Forall (fun '(QualT _ q) => QualLeq (qual Forig) q qf = Some true) alpha /\
       QualLeq (qual Forig) (get_hd (linear Forig)) qf = Some true /\
+      QualValid (qual Forig) (get_hd (linear Forig)) /\
+      QualValid (qual Forig) qf /\
       let F := update_linear_ctx (set_hd qf (linear Forig)) Forig in
       t1 = alpha ++ taus1 ++ [QualT (RefT W l (Ex sz qa tau)) qv] /\
       t2 = alpha ++ taus2 /\
@@ -6178,7 +8147,9 @@ Theorem get_localtype_same_len_None l1 l2 n:
       QualLeq (qual F) Linear qv = Some true /\
       M.is_empty (LinTyp S) = true /\
       LCEffEqual (size F) (add_local_effects L tl) L' /\
-      LCEffEqual (size F) L' L''.
+      LCEffEqual (size F) L' L'' /\
+      LocalCtxValid F (add_local_effects L tl) /\
+      LocalCtxValid F L''.
   Proof.
     intros.
     apply ExistUnpack_HasTypeInstruction in H.

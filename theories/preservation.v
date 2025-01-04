@@ -2130,15 +2130,21 @@ Module Preservation (M : Memory) (T : MemTyping M).
     1-3: do 2 handle_quals; auto.
 
     eapply QualLeq_subst'; eauto.
-    match goal with
-    | [ |- context[subst.under_kindvars' ?KVS] ] =>
-      match goal with
-      | [ |- context[ks_of_kvs ?KVS2] ] =>
-        replace (ks_of_kvs KVS2) with (ks_of_kvs KVS)
-      end
-    end.
-    2:{ rewrite ks_of_kvs_subst_kindvars; auto. }
-    apply pure_under_kindvars.
+    - match goal with
+      | [ |- context[subst.under_kindvars' ?KVS] ] =>
+        match goal with
+        | [ |- context[ks_of_kvs ?KVS2] ] =>
+          replace (ks_of_kvs KVS2) with (ks_of_kvs KVS)
+        end
+      end.
+      2:{ rewrite ks_of_kvs_subst_kindvars; auto. }
+      apply pure_under_kindvars.
+    - eapply Forall_impl; eauto.
+      intros; simpl in *.
+      destructAll; auto.
+    - eapply Forall_impl; eauto.
+      intros; simpl in *.
+      destructAll; auto.
   Qed.
 
   Lemma QualLeq_susbt_indices_gen : forall {idxs F foralls foralls' tau1 tau2 tau1' tau2' q1 q2},
@@ -2379,13 +2385,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
            SizeLeq [] sz0 sz1 = Some true /\
            SizeLeq [] sz1 sz0 = Some true)
         L L1 ->
+      LocalCtxValid F L1 ->
       HasTypeInstruction
         S C F L es (Arrow tau1 tau2) L' ->
       HasTypeInstruction
         S C F L1 es (Arrow tau1 tau2) L'.
   Proof.
     intros.
-    eapply ChangeBegLocalTyp; [ | eauto ].
+    eapply ChangeBegLocalTyp; [ auto | | eauto ].
     unfold LCEffEqual.
     apply forall2_nth_error_inv; [ | eapply Forall2_length; eauto ].
     intros.
@@ -2400,6 +2407,65 @@ Module Preservation (M : Memory) (T : MemTyping M).
     destructAll.
     split; auto.
     split; eapply SizeLeq_Bigger_Ctx; eauto; constructor.
+  Qed.
+
+  Lemma HasTypeInstruction_eq_sizes_weak : forall {S C F L es tau1 tau2 L' L1},
+      Forall2
+        (fun '(t1, sz0) '(t2, sz1) =>
+           t1 = t2 /\
+           SizeLeq [] sz0 sz1 = Some true /\
+           SizeLeq [] sz1 sz0 = Some true)
+        L L1 ->
+      Forall (fun '(_, sz) => SizeValid (size F) sz) L1 ->
+      HasTypeInstruction
+        S C F L es (Arrow tau1 tau2) L' ->
+      HasTypeInstruction
+        S C F L1 es (Arrow tau1 tau2) L'.
+  Proof.
+    intros.
+    eapply HasTypeInstruction_eq_sizes; eauto.
+    unfold LocalCtxValid.
+    rewrite Forall_forall.
+    intros.
+    destruct_prs.
+    split.
+    - match goal with
+      | [ H : In _ _ |- _ ] =>
+          apply In_nth_error in H
+      end.
+      destructAll.
+      eapply prove_using_unknown_lemma.
+      {
+        eapply Forall2_nth_error_imp_ex_nth_error; eauto.
+      }
+      intros; split; auto.
+      destructAll.
+      destruct_prs.
+      eapply prove_using_unknown_lemma.
+      {
+        eapply forall2_nth_error; eauto.
+      }
+      intros; split; auto.
+      simpl in *.
+      destructAll.
+        
+      match goal with
+      | [ H : HasTypeInstruction _ _ _ _ _ _ _ |- _ ] =>
+          apply HasTypeInstruction_FirstLocalValid in H
+      end.
+      unfold LocalCtxValid in *.
+      match goal with
+      | [ H : Forall _ ?L, H' : Forall2 _ ?L _, H'' : nth_error ?L _ = _ |- _ ] =>
+          apply nth_error_In in H'';
+          rewrite Forall_forall in H; specialize (H _ H'')
+      end.
+      simpl in *.
+      destructAll; auto.
+    - match goal with
+      | [ H : Forall _ ?L, H'' : In _ ?L |- _ ] =>
+          rewrite Forall_forall in H; specialize (H _ H'')
+      end.
+      simpl in *; auto.
   Qed.
 
   Lemma HasTypeInstruction_subst_loc : forall {S C F L es tau1 tau2 L' loc},
@@ -2509,6 +2575,57 @@ Module Preservation (M : Memory) (T : MemTyping M).
     constructor; auto.
   Qed.
 
+  Lemma TypeValid_weak_loc : forall {F t},
+      TypeValid F t ->
+      TypeValid
+        (debruijn.subst_ext (debruijn.weak subst.SLoc)
+                            (update_location_ctx (location F + 1) F))
+        (subst.subst'_type
+           (debruijn.subst'_of (debruijn.weak subst.SLoc)) t).
+  Proof.
+    intros.
+    specialize TypeValid_subst_loc_provable.
+    intro H'.
+    destruct H' as [H' _].
+    eapply H'; eauto.
+    - assert (H'' : debruijn_subst_ext_conds (subst'_of (ext subst.SLoc (LocV 0) id)) (ks_of_kvs []) subst.SLoc (LocV 0)); eauto.
+      apply simpl_debruijn_subst_ext_conds.
+    - match goal with
+      | [ |- context[subst.subst'_type ?F ?HT] ] =>
+          replace (subst.subst'_type F HT) with (subst_ext' F HT) by auto
+      end.
+      rewrite subst_ext'_assoc.
+      rewrite subst_weak_comp'.
+      rewrite subst_ext'_var_e; auto.
+    - simpl; eauto.
+    - simpl; auto.
+  Qed.
+
+  Lemma LocalCtxValid_weak_loc : forall {L F},
+      LocalCtxValid F L ->
+      LocalCtxValid
+        (subst'_function_ctx (subst'_of (weak subst.SLoc)) (update_location_ctx (location F + 1) F))
+        (subst'_local_ctx (subst'_of (weak subst.SLoc)) L).
+  Proof.
+    induction L.
+    1:{ constructor. }
+    intros.
+    unfold LocalCtxValid in *.
+    match goal with
+    | [ H : Forall _ _ |- _ ] => inv H
+    end.
+    destruct_prs.
+    destructAll.
+    constructor.
+    - split.
+      -- eapply TypeValid_weak_loc; eauto.
+      -- rewrite loc_weak_no_effect_on_size.
+         destruct F; simpl.
+         rewrite sizepairs_debruijn_weak_loc.
+         auto.
+    - eapply IHL; eauto.
+  Qed.
+
   Lemma Preservation_reduce_simpl S M F L es es' arrt L' addr :
     nth_error (InstTyp S) addr = Some M ->
     Function_Ctx_empty F ->
@@ -2518,36 +2635,37 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
     Reduce_simple addr es es' ->
 
-
     HasTypeInstruction S M F L es' arrt L'.
   Proof.
-    intros Hmod Hempty Hall Htyp Hred. inv Hred; destruct arrt; eauto.
-    - assert (Hn : 0 = 0) by congruence. revert L0 Hn Htyp Hall. generalize 0 at 2.
+    intros Hmod Hempty Hall Htyp Hred.
+    specialize Htyp as Htyp2.
+    inv Hred; destruct arrt; eauto.
+    - assert (Hn : 0 = 0) by congruence. revert L0 Hn Htyp Hall Htyp2. generalize 0 at 2.
       intros.
       assert (Hn' : n = 0) by eauto.
-      revert L0 Hn Htyp Hall. generalize 0.
+      revert L0 Hn Htyp Hall Htyp2. generalize 0.
       intros.
       destruct L0; try lia.
       simpl in *.
       show_tlvs Htyp.
       eapply HasTypeInstruction_local_is_tl in Htyp.
       destruct Htyp.
-      eapply ChangeEndLocalTyp; [ | eapply TrapTyp ]; eauto.
-      eapply LocalCtxValid_LCEffEqual; eauto.
-      apply LCEffEqual_sym; eauto.
+      destructAll.
+      eapply ChangeEndLocalTyp; [ | | eapply TrapTyp ]; eauto.
+      eapply HasTypeInstruction_QualValid; eauto.
 
     - show_tlvs Htyp.
       eapply Unreachable_HasTypeInstruction in Htyp.
       destructAll.
-      eapply ChangeEndLocalTyp; [ | eapply TrapTyp ]; eauto.
-      eapply LocalCtxValid_LCEffEqual; eauto.
-      apply LCEffEqual_sym; eauto.
+      eapply ChangeEndLocalTyp; [ | | eapply TrapTyp ]; eauto.
+      eapply HasTypeInstruction_QualValid; eauto.
       
     - (* Nop *)
       show_tlvs Htyp.
       eapply Nop_HasTypeInstruction in Htyp. destructAll.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply HasTypeInstruction_empty_list; eauto.
+      eapply ChangeEndLocalTyp; [ | eauto | ]; auto.
+      constructor; auto.
+      eapply HasTypeInstruction_QualValid; eauto.
       
     - (* Drop *)
       eapply composition_typing_double in Htyp. destructAll.
@@ -2564,8 +2682,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
       | [ H : _ ++ _ = _ ++ _ |- _ ] =>
         eapply app_inj_tail in H; destructAll
       end.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ]; auto.
+      eapply ChangeEndLocalTyp; [ | eauto | ]; auto.
       eapply HasTypeInstruction_empty_list.
 
       eapply SplitStoreTypings_Empty'. eassumption.
@@ -2577,6 +2695,7 @@ Module Preservation (M : Memory) (T : MemTyping M).
       -- unfold Function_Ctx_empty in *; destructAll; auto.
       -- auto.
       -- apply Forall_app; split; auto.
+      -- eapply HasTypeInstruction_QualValid; eauto.
 
     - (* Select 0 *)
       match goal with
@@ -2595,7 +2714,7 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       match goal with
       | [ H : HasTypeInstruction _ _ _ _ [Select] _ _ |- _ ] =>
-        show_tlvs H; eapply Select_HasTypeInstruction in H; destructAll
+          show_tlvs H; eapply Select_HasTypeInstruction in H; destructAll
       end.
       repeat match goal with
              | [ H : HasTypeInstruction _ _ _ _ [Val _] _ _ |- _ ] =>
@@ -2620,10 +2739,13 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eapply FrameTyp. reflexivity.
 
-      eapply Forall_trivial. intros [? ?]. now eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      {
+        now eapply QualLeq_Top.
+      }
       now eapply QualLeq_Top.
 
-      do 4 ltac:(eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ]).
+      do 4 ltac:(eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ]; [ eapply LocalCtxValid_Function_Ctx; eauto; destruct F; simpl; auto | ]).
       eapply ValTyp.
       eapply HasTypeValue_Function_Ctx.
       5:{ match goal with
@@ -2672,6 +2794,9 @@ Module Preservation (M : Memory) (T : MemTyping M).
       destruct F; reflexivity.
       destruct F; reflexivity.
       destruct F; subst; simpl in *; eapply LocalCtxValid_Function_Ctx; eauto.
+      destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_forall_apps.
 
     - (* Select <> 0 *)
@@ -2716,10 +2841,13 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eapply FrameTyp. reflexivity.
 
-      eapply Forall_trivial. intros [? ?]. now eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      {
+        now eapply QualLeq_Top.
+      }
       now eapply QualLeq_Top.
 
-      do 4 ltac:(eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ]).
+      do 4 ltac:(eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ]; [ eapply LocalCtxValid_Function_Ctx; eauto; destruct F; simpl; auto | ]).
       eapply ValTyp.
       eapply HasTypeValue_Function_Ctx.
       5: {edestruct SplitStoreTypings_assoc.
@@ -2766,6 +2894,9 @@ Module Preservation (M : Memory) (T : MemTyping M).
       destruct F; reflexivity.
       destruct F; reflexivity.
       destruct F; subst; simpl in *; eapply LocalCtxValid_Function_Ctx; eauto.
+      destruct F; simpl; rewrite get_set_hd; econstructor; eauto.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_forall_apps.
 
     - (* Block *)
@@ -2806,46 +2937,81 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eapply FrameTyp.
 
       4:{ simpl.
-          eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-          eapply LabelTyp. reflexivity. simpl.
+          eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ]; [ | eauto ].
+          2:{
+            eapply LabelTyp. reflexivity. simpl.
 
-          eapply HasTypeInstruction_app.
+            eapply HasTypeInstruction_app.
 
-          2:{ eapply ChangeEndLocalTyp; [ eauto | ]. eassumption. }
+            2:{ eapply ChangeEndLocalTyp; [ | eauto | ].
+                - eapply LocalCtxValid_Function_Ctx; eauto.
+                - eassumption. }
 
-          simpl in *.
-          eapply ChangeEndLocalTyp; [ eauto | ].
-          eapply HasTypeInstruction_Values.
+            simpl in *.
+            eapply ChangeEndLocalTyp; [ | eauto | ].
+            {
+              eapply LocalCtxValid_Function_Ctx; eauto.
+            }
+            eapply HasTypeInstruction_Values.
 
-          2: eapply Forall3_monotonic; [| eassumption ].
-          eauto.
+            2: eapply Forall3_monotonic; [| eassumption ].
+            eauto.
 
-          simpl.
-          intros st v1 tau1 Hhtv.
-          eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity.
+            simpl.
+            intros st v1 tau1 Hhtv.
+            eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity.
+            {
+              eapply LocalCtxValid_Function_Ctx.
+              { eapply HasTypeInstruction_FirstLocalValid.
+                eauto. }
+              all: simpl; auto.
+            }
+            {
+              simpl.
+              econstructor; eauto.
+            }
+            {
+              eassumption.
+            }
 
-          eapply LocalCtxValid_LCEffEqual.
-          2:{ apply LCEffEqual_sym; eauto. }
-          eapply LocalCtxValid_Function_Ctx; eauto.
+            eapply HasTypeInstruction_empty_list.
+            1:{ eapply is_empty_LinTyp. }
+            1:{ eapply LocalCtxValid_Function_Ctx; eauto. }
 
-          eassumption.
-
-          eapply HasTypeInstruction_empty_list.
-          1:{ eapply is_empty_LinTyp. }
-          1:{ eapply LocalCtxValid_LCEffEqual; [ | eauto ].
-              eapply LocalCtxValid_Function_Ctx; eauto. }
-
-          solve_forall_apps.
-          eapply Forall_TypeValid_Function_Ctx; eauto. }
+            solve_forall_apps.
+            eapply Forall_TypeValid_Function_Ctx; eauto.
+            simpl; rewrite get_set_hd; auto.
+            simpl; rewrite get_set_hd; auto. }
+          eapply LocalCtxValid_Function_Ctx.
+          { eapply HasTypeInstruction_SecondLocalValid.
+            eauto. }
+          all: simpl; auto. }
 
       simpl. reflexivity.
 
       eapply Forall_app. split; [ | eassumption ].
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        destructAll.
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
+
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable.
+      {
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ (_ ++ _) _ _ |- _ ] =>
+            exact H
+        end.
+      }
+      1-2: simpl; auto.
+
+      simpl; auto.
 
       solve_forall_apps.
       eapply Forall_TypeValid_Function_Ctx; eauto.
@@ -2896,8 +3062,16 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
 
       4:{ simpl.
-          eapply ChangeEndLocalTyp; [ simpl; eauto | ].
-          eapply ChangeEndLocalTyp; [ simpl; apply LCEffEqual_sym; eauto | ].
+          eapply ChangeEndLocalTyp; [ | simpl; eauto | ].
+          {
+            eapply LocalCtxValid_Function_Ctx; [ eauto | | | | ].
+            all: simpl; auto.
+          }
+          eapply ChangeEndLocalTyp; [ | simpl; apply LCEffEqual_sym; eauto | ].
+          {
+            eapply LocalCtxValid_Function_Ctx; [ eauto | | | | ].
+            all: simpl; auto.
+          }
           eapply LabelTyp. reflexivity. simpl.
 
           eapply HasTypeInstruction_app.
@@ -2910,18 +3084,44 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
           eassumption.
 
-          eapply LocalCtxValid_LCEffEqual.
-          2:{ apply LCEffEqual_sym; eauto. }
-          eapply LocalCtxValid_Function_Ctx; eauto.
+          eapply LocalCtxValid_Function_Ctx.
+          {
+            eapply HasTypeInstruction_FirstLocalValid; eauto.
+          }
+          all: simpl; auto.
+
+          econstructor; eauto.
           
-          eapply ChangeBegLocalTyp; [ | eapply ChangeEndLocalTyp; [ | eauto ] ]; simpl; eauto.
-          apply LCEffEqual_sym; auto.
+          eapply ChangeBegLocalTyp; [ | | eapply ChangeEndLocalTyp; [ | | eauto ] ].
+          
+          {
+            eapply LocalCtxValid_Function_Ctx.
+            eapply HasTypeInstruction_FirstLocalValid; eauto.
+            all: simpl; auto.
+          }
+          {
+            simpl.
+            apply LCEffEqual_sym; auto.
+          }
+          {
+            eapply LocalCtxValid_Function_Ctx; eauto.
+          }
+          {
+            simpl; auto.
+          }
           eassumption.
+          
           simpl.
           eapply LoopTyp. simpl.
           eapply HasTypeInstruction_StoreTyping_eq.
-          eapply ChangeBegLocalTyp; [ | eapply ChangeEndLocalTyp; eauto ].
-          simpl; auto.
+          eapply ChangeBegLocalTyp; [ | | eapply ChangeEndLocalTyp; eauto ].
+          all: simpl; auto.
+          {
+            eapply LocalCtxValid_Function_Ctx; eauto.
+          }
+          {
+            eapply LocalCtxValid_Function_Ctx; eauto.
+          }
 
           match goal with
           | [ H : HasTypeInstruction _ _ _ _ ?ES _ _,
@@ -2954,16 +3154,27 @@ Module Preservation (M : Memory) (T : MemTyping M).
             simpl in *. subst.
             split; eauto. split; eauto. simpl.
             eapply eq_map_is_empty.
-            simpl in *; auto. } }
+            simpl in *; auto. }
+          rewrite get_set_hd; auto.
+          rewrite get_set_hd; auto. }
 
       simpl. reflexivity.
 
       eapply Forall_app. split; [ | eassumption ].
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        destructAll.
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *.
+          eassumption.
+      }
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
+
+      simpl; auto.
+      simpl; auto.
 
       solve_forall_apps.
       eapply Forall_TypeValid_Function_Ctx; eauto.
@@ -2995,18 +3206,32 @@ Module Preservation (M : Memory) (T : MemTyping M).
       reflexivity.
 
       eapply Forall_app. split; [ | eassumption ].
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      prepare_Forall.
+      {
+        destructAll.
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
       simpl.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply BlockTyp. simpl.
       rewrite set_set_hd in *.
-      eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
 
       eapply HasTypeInstruction_StoreTyping_eq; eauto.
       eapply SplitStoreTypings_Empty_eq; eauto.
@@ -3017,6 +3242,22 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       simpl.
       eapply LCEffEqual_trans; eauto.
+
+      rewrite set_set_hd in *; auto.
+
+      simpl in *.
+      rewrite get_set_hd; auto.
+
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable.
+      {
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ [_; ITE _ _ _ _] _ _ |- _ ] => exact H
+        end.
+      }
+      1-2: simpl; auto.
+      
+      all: rewrite get_set_hd in *; auto.
 
       solve_forall_apps.
       eapply Forall_TypeValid_Function_Ctx; eauto.
@@ -3047,16 +3288,29 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       reflexivity.
 
-      eapply Forall_app. split; [ | eassumption ].
-      prepare_Forall. eapply QualLeq_Trans. eassumption.
-      rewrite get_set_hd in *. eassumption.
+      eapply Forall_app.
+      split; [ | eassumption ].
+      prepare_Forall.
+      {
+        destructAll.
+        eapply QualLeq_Trans.
+        - eassumption.
+        - rewrite get_set_hd in *. eassumption.
+      }
 
+      simpl.
       eapply QualLeq_Trans. eassumption.
       rewrite get_set_hd in *. eassumption.
 
       simpl.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply BlockTyp. simpl.
       rewrite set_set_hd in *.
 
@@ -3064,10 +3318,31 @@ Module Preservation (M : Memory) (T : MemTyping M).
       | [ H : HasTypeValue _ _ (NumConst _ _) _ |- _ ] =>
         inv H; auto
       end.
-      eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply HasTypeInstruction_StoreTyping_eq. eassumption.
       eapply SplitStoreTypings_Empty_eq. eassumption. eassumption.
       eapply LCEffEqual_trans; eauto.
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+
+      simpl.
+      rewrite get_set_hd; auto.
+
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable.
+      {
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ [_; ITE _ _ _ _] _ _ |- _ ] => exact H
+        end.
+      }
+      1-2: simpl; auto.
+      
+      simpl; auto.
+      
       solve_forall_apps.
       eapply Forall_TypeValid_Function_Ctx; eauto.
 
@@ -3085,7 +3360,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
       edestruct Values_HasTypeInstruction with (H := H). eassumption. destructAll.
 
       simpl.
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply HasTypeInstruction_Values.
 
       eassumption.
@@ -3093,6 +3371,21 @@ Module Preservation (M : Memory) (T : MemTyping M).
       simpl. intros st v tau Hv. eapply HasTypeValue_Function_Ctx; [ | | | | eassumption ]; reflexivity.
 
       eapply LocalCtxValid_Function_Ctx; eauto.
+
+      simpl in *.
+      rewrite get_set_hd; auto.
+
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable.
+      {
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ [Label _ _ _ _] _ _ |- _ ] => exact H
+        end.
+      }
+      1-2: simpl; auto.
+
+      auto.
+      
       solve_forall_apps.
 
     - (* Label Trap *)
@@ -3103,15 +3396,26 @@ Module Preservation (M : Memory) (T : MemTyping M).
       | [ H : HasTypeInstruction _ _ _ _ [Trap] _ _ |- _ ] =>
         show_tlvs H; eapply HasTypeInstruction_local_is_tl in H; destruct H
       end.
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      destructAll.
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply TrapTyp.
 
       eapply LocalCtxValid_Function_Ctx; eauto.
       solve_forall_apps.
       solve_forall_apps.
-      eapply LocalCtxValid_LCEffEqual.
-      2:{ apply LCEffEqual_sym; eauto. }
       eapply LocalCtxValid_Function_Ctx; eauto.
+      simpl.
+      
+      eapply HasTypeInstruction_QualValid_usable.
+      {
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ [Label _ _ _ _] _ _ |- _ ] => exact H
+        end.
+      }
+      1-2: simpl; auto.
 
     - (* Label vs *)
       show_tlvs Htyp.
@@ -3130,7 +3434,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
       2:{ eassumption. }
       2:{ eapply SplitStoreTypings_EmptyHeapTyping_r. }
 
-      eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       match goal with
       | [ H : HasTypeInstruction _ _ _ _ _ (Arrow [] _) _
           |- HasTypeInstruction _ _ _ _ _ _ ?L ] =>
@@ -3143,7 +3450,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
             H' : values ?VS |- _ ] =>
           eapply Values_HasTypeInstruction in H; destructAll
         end.
-        eapply ChangeEndLocalTyp; [ | eapply HasTypeInstruction_Values ].
+        eapply ChangeEndLocalTyp; [ | | eapply HasTypeInstruction_Values ].
+        {
+          eapply LocalCtxValid_Function_Ctx; eauto.
+        }
         simpl in *; apply LCEffEqual_sym; eauto.
         eauto. simpl.
 
@@ -3151,14 +3461,17 @@ Module Preservation (M : Memory) (T : MemTyping M).
         simpl. intros. eapply HasTypeValue_Function_Ctx; [ | | | | eassumption ]; reflexivity.
         eapply LocalCtxValid_Function_Ctx; eauto.
 
-      +  rewrite Bool.andb_true_r in Hall.
-         eapply andb_prop in Hall; destruct Hall.
-         match goal with
-         | [ H : (_ && _)%bool = true |- _ ] =>
-           eapply andb_prop in H; destruct H
-         end.
-         eapply well_formews_Inst_list_is_well_formed_in_context.
-         eassumption.
+        simpl.
+        rewrite get_set_hd; auto.
+
+      + rewrite Bool.andb_true_r in Hall.
+        eapply andb_prop in Hall; destruct Hall.
+        match goal with
+        | [ H : (_ && _)%bool = true |- _ ] =>
+          eapply andb_prop in H; destruct H
+        end.
+        eapply well_formews_Inst_list_is_well_formed_in_context.
+        eassumption.
       + rewrite Bool.andb_true_r in Hall.
         eapply andb_prop in Hall; destruct Hall.
         match goal with
@@ -3174,6 +3487,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
         
       + unfold Function_Ctx_empty in *.
         simpl in *; destructAll; auto.
+
+      + auto.
+
+      + auto.
 
       + solve_forall_apps.
 
@@ -3199,8 +3516,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
         eapply app_eq_len in H; [ | reflexivity ]
       end.
       destructAll.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply HasTypeInstruction_empty_list.
       match goal with
       | [ H : SplitStoreTypings _ _ |- _ ] => inv H
@@ -3218,7 +3541,7 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eapply LocalCtxValid_Function_Ctx; eauto.
       solve_forall_apps.
-      all: eapply Forall_TypeValid_Function_Ctx; eauto.
+      all: try eapply Forall_TypeValid_Function_Ctx; eauto.
 
     - (* Br_if, z <> 0 *)
 
@@ -3248,7 +3571,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eapply Forall_app. split; [| eassumption ].
       prepare_Forall.
-      eapply QualLeq_Trans; eassumption.
+      {
+        destructAll.
+        eapply QualLeq_Trans; eassumption.
+      }
 
       simpl. eapply QualLeq_Trans; eassumption.
 
@@ -3257,10 +3583,22 @@ Module Preservation (M : Memory) (T : MemTyping M).
         replace x8 with ([] ++ x8) by reflexivity
       end.
 
-      eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       match goal with
       | [ |- HasTypeInstruction _ _ _ ?L _ _ ?L ] =>
         replace (L) with (add_local_effects L []) at 2 by (simpl; congruence)
@@ -3288,7 +3626,6 @@ Module Preservation (M : Memory) (T : MemTyping M).
       + simpl. rewrite set_set_hd in *. eauto.
 
       + simpl in *.
-        eapply LocalCtxValid_LCEffEqual; [ | eauto ].
         eapply LocalCtxValid_Function_Ctx; eauto.
 
       + simpl in *.
@@ -3300,8 +3637,21 @@ Module Preservation (M : Memory) (T : MemTyping M).
         eapply Forall_TypeValid_Function_Ctx; eauto.
 
       + simpl in *.
-        eapply LocalCtxValid_LCEffEqual; [ | eauto ].
         eapply LocalCtxValid_Function_Ctx; eauto.
+
+      + simpl.
+        rewrite get_set_hd; auto.
+
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable.
+        {
+          match goal with
+          | [ H : HasTypeInstruction _ _ _ _ [_; Br_if _] _ _ |- _ ] => exact H
+          end.
+        }
+        1-2: simpl; auto.
+
+      + auto.
 
       + solve_forall_apps.
         eapply Forall_TypeValid_Function_Ctx; eauto.  
@@ -3342,12 +3692,21 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eapply Forall_app. split; [| eassumption ].
 
       prepare_Forall.
-      eapply QualLeq_Trans; eassumption.
+      {
+        destructAll.
+        eapply QualLeq_Trans; eassumption.
+      }
       eapply QualLeq_Trans; eassumption.
 
       simpl.
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
 
       match goal with
       | [ H : LCEffEqual ?C ?L1 ?L2,
@@ -3357,8 +3716,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       { apply LCEffEqual_add_local_effects; auto. }
       
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply BrTyp.
 
       + match goal with
@@ -3396,23 +3761,31 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
         eapply nth_error_In. eassumption.
 
-      + eapply LocalCtxValid_LCEffEqual; [ | eauto ].
-        eapply LocalCtxValid_Function_Ctx; eauto.
+      + eapply LocalCtxValid_Function_Ctx; eauto.
 
       + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.
 
       + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.
 
-      + eapply LocalCtxValid_LCEffEqual; [ | eauto ].
-        eapply LocalCtxValid_LCEffEqual; [ | apply LCEffEqual_sym ].
-        2:{
+      + eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+        ++ simpl.
+           apply LCEffEqual_sym; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+
+      + simpl.
+        rewrite get_set_hd; auto.
+
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable.
+        {
           match goal with
-          | [ H : LCEffEqual _ ?A (add_local_effects _ _),
-              H' : LCEffEqual _ ?A _ |- LCEffEqual _ ?A _ ] =>
-            exact H'
+          | [ H : HasTypeInstruction _ _ _ _ [_; Br_table _ _] _ _ |- _ ] => exact H
           end.
         }
-        eapply LocalCtxValid_Function_Ctx; eauto.
+        1-2: simpl; auto.
+
+      + auto.
 
       + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.     
 
@@ -3449,7 +3822,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eapply Forall_app. split; [| eassumption ].
 
       prepare_Forall.
-      eapply QualLeq_Trans; eassumption.
+      {
+        destructAll.
+        eapply QualLeq_Trans; eassumption.
+      }
       eapply QualLeq_Trans; eassumption.
 
       match goal with
@@ -3457,8 +3833,15 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
 
       simpl.
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+        
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
 
       match goal with
       | [ H : LCEffEqual ?C ?L1 ?L2,
@@ -3468,8 +3851,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       { apply LCEffEqual_add_local_effects; auto. }
       
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply BrTyp.
 
       + match goal with
@@ -3496,12 +3885,31 @@ Module Preservation (M : Memory) (T : MemTyping M).
         simpl. rewrite list_max_app.
         simpl. lia.
 
-      + solve_lcvs.
+      + eapply LocalCtxValid_Function_Ctx; eauto.
+
       + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.
       + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.
-      + solve_lcvs.
-      + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.
-        
+      + eapply LocalCtxValid_LCEffEqual_add_local_effects; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+        ++ simpl.
+           apply LCEffEqual_sym; eauto.
+        ++ eapply LocalCtxValid_Function_Ctx; eauto.
+
+      + simpl.
+        rewrite get_set_hd; auto.
+
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable.
+        {
+          match goal with
+          | [ H : HasTypeInstruction _ _ _ _ [_; Br_table _ _] _ _ |- _ ] => exact H
+          end.
+        }
+        1-2: simpl; auto.
+
+      + auto.
+
+      + solve_forall_apps; eapply Forall_TypeValid_Function_Ctx; eauto.        
 
     - (* Tee_local *)
 
@@ -3541,13 +3949,24 @@ Module Preservation (M : Memory) (T : MemTyping M).
             rewrite <- (app_nil_r A)
           end.
           eapply FrameTyp. reflexivity. simpl.
-          eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+          eapply Forall_trivial. intros [? ?].
+          eapply QualLeq_Top.
           eapply QualLeq_Top. simpl.
-          eapply ChangeEndLocalTyp; [ eauto | ].
+          eapply ChangeEndLocalTyp; [ | eauto | ].
+          {
+            eapply LocalCtxValid_Function_Ctx; eauto.
+          }
           eapply SetlocalTyp. eassumption.
           eassumption. eassumption. eassumption. eassumption.
+          eassumption.
           solve_lcvs.
           solve_tvs.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          simpl.
+          rewrite get_set_hd; auto.
+          econstructor; eauto.
           solve_tvs.
       }
 
@@ -3559,7 +3978,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
@@ -3570,7 +3990,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply ConsTyp.
 
-      2:{ eapply ValTyp. eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity. solve_lcvs. }
+      2:{ eapply ValTyp. eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity. solve_lcvs.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto. }
 
       2:{ match goal with
           | [ |- context[Arrow [?T] _] ] =>
@@ -3580,12 +4003,25 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
           eapply FrameTyp. reflexivity. simpl.
 
-          eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+          eapply Forall_trivial. intros [? ?].
+          eapply QualLeq_Top.
           eapply QualLeq_Top.
 
           simpl.
-          eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
-          eapply ValTyp. eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity. solve_lcvs. solve_tvs. }
+          eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+          {
+            eapply LocalCtxValid_Function_Ctx; eauto.
+          }
+          eapply ValTyp. eapply HasTypeValue_Function_Ctx; [| | | | eassumption ]; reflexivity. solve_lcvs.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          simpl.
+          econstructor; eauto.
+          solve_tvs. }
 
       match goal with
       | [ H : HasTypeValue _ _ _ _ |- _ ] =>
@@ -3597,7 +4033,13 @@ Module Preservation (M : Memory) (T : MemTyping M).
          end.
          unfold HasEmptyLinTyping. eassumption.
       -- unfold Function_Ctx_empty in *; simpl in *; destructAll; auto.
+      -- simpl.
+         rewrite get_set_hd; auto.
+      -- simpl.
+         econstructor; eauto.
       -- solve_tvs.
+      -- auto.
+      -- auto.
       -- solve_tvs.
 
     - (* CoderefI *)
@@ -3610,17 +4052,37 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
-      eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ].
+      eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
       eapply ValTyp. eapply HasTypeValue_Function_Ctx.
-      5:{ econstructor; try eassumption. reflexivity. econstructor. }
+      5:{
+        econstructor; try eassumption.
+        - reflexivity.
+        - econstructor.
+        - eapply TypeValid_Function_Ctx; eauto.
+          all: unfold Function_Ctx_empty in *.
+          all: destructAll.
+          all: destruct F; simpl in *; subst; auto.
+      }
       destruct F; reflexivity.
       destruct F; reflexivity.
       destruct F; reflexivity.
       destruct F; reflexivity.
       solve_lcvs; destruct F; reflexivity.
+      {
+        destruct F; simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
+      }
+      eapply HasTypeInstruction_QualValid; eauto.
+      econstructor; eauto.
       solve_tvs.
 
     - (* Inst *)
@@ -3652,12 +4114,19 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
       simpl.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp. eapply HasTypeValue_Function_Ctx.
       5:{ match goal with
           | [ H : SplitStoreTypings _ _ |- _ ] => inv H
@@ -3688,12 +4157,20 @@ Module Preservation (M : Memory) (T : MemTyping M).
           eapply InstIndsValid_Function_Ctx_strong; [ eassumption | | | | ];
             simpl; eapply Hempty.
           eapply InstInds_coderef_TypeValid; eauto.
+          eapply InstIndsValid_Function_Ctx_strong; [ eassumption | | | | ];
+            simpl; eapply Hempty.
       }
       reflexivity.
       reflexivity.
       reflexivity.
       reflexivity.
       solve_lcvs.
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_tvs.
 
     - (* RecFold *)
@@ -3724,15 +4201,22 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       match goal with
       | [ H : [_] = [_] |- _ ] => inversion H; subst
       end.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp. eapply HasTypeValue_Function_Ctx.
       5:{ eapply RecTyp; try eassumption.
           - econstructor; eauto.
@@ -3752,6 +4236,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
       reflexivity.
       reflexivity.
       solve_lcvs.
+      simpl.
+      rewrite get_set_hd; auto.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_tvs.
 
     - (* RecUnfold *)
@@ -3782,11 +4272,18 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp. simpl.
 
       eapply HasTypeValue_StoreTyping_eq.
@@ -3799,6 +4296,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eassumption.
 
       solve_lcvs.
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_tvs.
 
     - (* Group *)
@@ -3839,12 +4342,19 @@ Module Preservation (M : Memory) (T : MemTyping M).
       rewrite app_assoc.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp.
 
       eapply HasTypeValue_StoreTyping_eq.
@@ -3860,6 +4370,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eassumption. eassumption.
 
       solve_lcvs.
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_tvs.
 
     - (* Unroup *)
@@ -3891,14 +4407,21 @@ Module Preservation (M : Memory) (T : MemTyping M).
       rewrite app_assoc.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       assert (Hval : values (map Val vs)).
       { eapply values_Val. }
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply HasTypeInstruction_Values.
 
       2:{ simpl. rewrite to_values_Val.
@@ -3917,6 +4440,15 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eassumption.
 
       solve_lcvs.
+      
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
+      
       solve_tvs.
 
     - (* CapSplit *)
@@ -3943,7 +4475,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
       rewrite app_assoc.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
@@ -3958,7 +4491,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
           eapply FrameTyp. reflexivity. simpl.
 
-          eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+          eapply Forall_trivial. intros [? ?].
+          eapply QualLeq_Top.
           eapply QualLeq_Top.
 
           simpl. eapply ValTyp. econstructor. eassumption.
@@ -3974,6 +4508,15 @@ Module Preservation (M : Memory) (T : MemTyping M).
           end.
 
           solve_lcvs.
+
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          econstructor; eauto.
+          
           constructor; solve_tvs.
           match goal with
           | [ H : TypeValid _ (QualT (CapT _ _ _) _) |- _ ] => inv H
@@ -3993,8 +4536,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eassumption.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp. simpl.
       match goal with
       | [ H : HasTypeValue _ _ Cap _ |- _ ] => inv H
@@ -4015,6 +4564,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
       reflexivity.
       reflexivity.
       solve_lcvs.
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_tvs.
 
     - (* CapJoin *)
@@ -4074,16 +4629,26 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
       replace [Val Cap; Val Own] with ([Val Cap] ++ [Val Own])
         by reflexivity.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp.
       match goal with
       | [ H : HasTypeValue _ _ Cap _ |- _ ] => inv H
@@ -4121,6 +4686,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
         reflexivity.
 
       + solve_lcvs.
+      + simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable; eauto.
+      + econstructor; eauto.
       + solve_tvs.
 
     - (* RefDemote *)
@@ -4150,12 +4721,19 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp.
 
       match goal with
@@ -4166,7 +4744,6 @@ Module Preservation (M : Memory) (T : MemTyping M).
         | [ H : TypeValid _ (QualT (RefT _ _ _) _) |- _ ] => inv H
         end.
         exfalso; eapply QualLeq_Const_False; eauto.
-        unfold Function_Ctx_empty in *; simpl in *; destructAll; auto.
       }
       
       econstructor.
@@ -4194,6 +4771,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
       reflexivity.
       reflexivity.
       solve_lcvs.
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       solve_tvs.
       
     - (* RefSplit *)
@@ -4224,7 +4807,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
@@ -4243,7 +4827,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
           eapply FrameTyp. reflexivity. simpl.
 
-          eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+          eapply Forall_trivial. intros [? ?].
+          eapply QualLeq_Top.
           eapply QualLeq_Top.
 
           simpl. eapply ValTyp.
@@ -4263,11 +4848,42 @@ Module Preservation (M : Memory) (T : MemTyping M).
           match goal with
           | [ H : Forall _ [_; _] |- _ ] => inv H
           end.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          simpl.
+          rewrite get_set_hd.
+          econstructor; eauto.
+          econstructor; eauto.
           solve_tvs.
+          constructor.
+          match goal with
+          | [ H : TypeValid _ (QualT (RefT _ _ _) _) |- _ ] =>
+              inv H
+          end.
+          simpl in *.
+          econstructor; auto.
+          - match goal with
+            | [ H : HeapTypeValid ?F ?HT |- HeapTypeValid {| label := ?LAB; ret := ?RET; qual := ?Q; size := ?SZ; type := ?T; location := ?L; linear := _ |} ?HT ] =>
+              replace LAB with (typing.label F) by auto;
+              replace RET with (typing.ret F) by auto;
+              replace Q with (typing.qual F) by auto;
+              replace SZ with (typing.size F) by auto;
+              replace T with (typing.type F) by auto;
+              replace L with (typing.location F) by auto
+            end.
+            eapply HeapTypeValid_linear; eauto.
+          - constructor.
       }
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp. simpl in *.
       match goal with
       | [ H : HasTypeValue _ _ (Ref _) _ |- _ ] => inv H
@@ -4292,6 +4908,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
         reflexivity.
         reflexivity.
       + solve_lcvs.
+      + simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable; eauto.
+      + econstructor; eauto.
       + solve_tvs.
 
     - (* RefJoin *)
@@ -4352,14 +4974,24 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl in *.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp.
       simpl in *.
       match goal with
@@ -4394,6 +5026,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
       reflexivity.
 
       solve_lcvs.
+
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
+      
       solve_tvs.
 
     - (* Mempack *)
@@ -4423,21 +5063,20 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      (* eapply Forall_app. split. eassumption. *)
-
-
-      (* eapply Forall_impl; [ | eassumption ].  *)
-      (* intros [? ?] Hyp. eapply QualLeq_Trans; eassumption.       *)
-
-      (* eapply QualLeq_Trans; eassumption. *)
-
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
 
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply ValTyp.
       econstructor.
       simpl; auto.
@@ -4497,6 +5136,14 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eapply SplitStoreTypings_comm. eassumption. eassumption.
 
       solve_lcvs.
+
+      simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
+      
       solve_tvs.
 
     - (* MemUnpack *) assert (Htyp' := Htyp).
@@ -4529,13 +5176,23 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       eapply Forall_app. split. 2:{ eassumption. }
 
-      prepare_Forall. eapply QualLeq_Trans; eassumption.
+      prepare_Forall.
+      {
+        destructAll.
+        eapply QualLeq_Trans; eassumption.
+      }
 
       eapply QualLeq_Trans; eassumption.
 
       simpl.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeBegLocalTyp; [ apply LCEffEqual_sym; eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeBegLocalTyp; [ | apply LCEffEqual_sym; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply BlockTyp. simpl.
 
       match goal with
@@ -4555,7 +5212,8 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
@@ -4565,8 +5223,13 @@ Module Preservation (M : Memory) (T : MemTyping M).
       simpl.
       simpl in *.
       solve_lcvs.
+      simpl.
+      econstructor; eauto.
+      simpl.
+      econstructor; eauto.
+      econstructor; eauto.
       solve_tvs.
-      4: solve_tvs.
+      6: solve_tvs.
       2: eassumption.
 
       unfold Function_Ctx_empty in *.
@@ -4620,10 +5283,15 @@ Module Preservation (M : Memory) (T : MemTyping M).
         * unfold subst'_function_ctx in *.
           simpl in *.
           unfold subst.subst'_types in *.
-          eapply ChangeEndLocalTyp; [ | eauto ].
-          simpl.
-          apply LCEffEqual_sym.
-          apply LCEffEqual_subst_weak_loc; auto.
+          eapply ChangeEndLocalTyp; [ | | eauto ].
+          ** eapply LocalCtxValid_Function_Ctx.
+             {
+               eapply LocalCtxValid_weak_loc; eauto.
+             }
+             all: simpl; auto.
+          ** simpl.
+             apply LCEffEqual_sym.
+             apply LCEffEqual_subst_weak_loc; auto.
         * simpl; auto.
         * unfold subst'_function_ctx; simpl.
           constructor; auto.
@@ -4647,6 +5315,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
       + apply function_ctx_debruijn_subst_weak.
       + simpl.
         eapply LCEffEqual_trans; eauto.
+      + eapply LocalCtxValid_Function_Ctx; eauto.
+      + simpl.
+        rewrite get_set_hd; auto.
+      + auto.
+      + solve_tvs.
 
     - (* StructMalloc *)
       eapply composition_typing in Htyp.
@@ -4686,15 +5359,37 @@ Module Preservation (M : Memory) (T : MemTyping M).
       end.
       eapply FrameTyp. reflexivity. simpl.
 
-      eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
+      eapply Forall_trivial. intros [? ?].
+      eapply QualLeq_Top.
       eapply QualLeq_Top.
 
       simpl.
       rewrite StructType_subst.
       edestruct size_val_leq_list.
-      eassumption. eassumption. eassumption. eassumption.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eassumption. eassumption.
+      {
+        eapply forall2_nth_error_inv.
+        2:{ eapply Forall2_length; eauto. }
+        intros.
+        eapply prove_using_unknown_lemma.
+        {
+          eapply forall2_nth_error; [ | | eauto ]; eauto.
+        }
+        intros.
+        split; auto.
+        simpl in *.
+        destructAll.
+        eauto.
+      }
+      eassumption.
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       match goal with
       | [ H : size_closed _ |- _ ] =>
         eapply (MallocTyp _ _ _ _ _ _ _ _ H)
@@ -4712,7 +5407,7 @@ Module Preservation (M : Memory) (T : MemTyping M).
               { exists I.
                 simpl; auto. }
               eapply fold_size_to_nat_eq_to_size_fold_SizePlus. }
-      2 : {simpl. eassumption. }
+      2:{ simpl. unfold Function_Ctx_empty in *. destructAll. simpl in *. subst. auto. }
       econstructor.
       + match goal with
         | [ H : SplitStoreTypings _ _ |- _ ] =>
@@ -4727,12 +5422,17 @@ Module Preservation (M : Memory) (T : MemTyping M).
       + eapply Forall3_monotonic; [ | eassumption ].
         simpl. intros.
         eapply HasTypeValue_Function_Ctx; [ | | | | eassumption ]; try reflexivity.
+        all: unfold Function_Ctx_empty in *; destructAll; simpl in *; subst; auto.
       + rewrite combine_split; eauto.
         eapply Forall2_length; eauto.
-      + simpl; split; eauto.
+      + unfold Function_Ctx_empty in *; destructAll; simpl in *; subst.
+        simpl; split; eauto.
       + simpl.
-        rewrite combine_split. auto.
-        eapply Forall2_length; eauto.
+        rewrite combine_split.
+        2:{ eapply Forall2_length; eauto. }
+        unfold heapable in *.
+        unfold Function_Ctx_empty in *; destructAll; simpl in *; subst.
+        simpl in *; auto.
       + solve_lcvs.
       + solve_tvs.
         match goal with
@@ -4741,6 +5441,7 @@ Module Preservation (M : Memory) (T : MemTyping M).
           replace L2 with L
         end.
         * eapply TypeValid_Function_Ctx; eauto.
+          all: unfold Function_Ctx_empty in *; destructAll; simpl in *; subst; auto.
         * rewrite subst.map_combine.
           match goal with
           | [ |- combine _ ?A = combine _ ?B ] =>
@@ -4750,6 +5451,12 @@ Module Preservation (M : Memory) (T : MemTyping M).
           apply map_ext.
           intros.
           apply loc_weak_no_effect_on_size.
+      + simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable; eauto.
+      + econstructor; eauto.
       + solve_tvs.
 
     - (* VariantMalloc *)
@@ -4793,17 +5500,24 @@ Module Preservation (M : Memory) (T : MemTyping M).
       rewrite VariantType_subst.
       assert (Hsz : size_closed (SizePlus (SizeConst 32) (size_of_value v))).
       { split; exact I. }
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply MallocTyp with (H := Hsz).
       2 : { simpl. destruct Hsz. constructor. exact I. }
-      2 : { simpl. eassumption. }
+      2 : { simpl. unfold Function_Ctx_empty in *; destructAll; simpl in *; subst; auto. }
       simpl. econstructor.
       + eapply Forall_impl.
         2: { eauto. }
         intros.
         simpl in *.
         eapply TypeValid_Function_Ctx; eauto.
+        all: unfold Function_Ctx_empty in *; destructAll; simpl in *; subst; auto.
       + eauto.
       + match goal with
         | [ H : SplitStoreTypings _ _ |- _ ] =>
@@ -4813,10 +5527,19 @@ Module Preservation (M : Memory) (T : MemTyping M).
         eapply HasTypeValue_StoreTyping_eq.
         eapply HasTypeValue_Function_Ctx.
         5:{ eauto. }
-        all: eauto.
-      + simpl. eassumption.
+        all: unfold Function_Ctx_empty in *; destructAll; simpl in *; subst; auto.
+      + simpl.
+        unfold Function_Ctx_empty in *; destructAll; simpl in *; subst.
+        eassumption.
       + solve_lcvs.
       + solve_tvs.
+        all: unfold Function_Ctx_empty in *; destructAll; simpl in *; subst; auto.
+      + simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable; eauto.
+      + econstructor; eauto.
       + solve_tvs.
 
     - (* ArrayMalloc *)
@@ -4921,17 +5644,42 @@ Module Preservation (M : Memory) (T : MemTyping M).
       { simpl. split. exact I. eassumption. }
 
       rewrite ArrayType_subst.
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
+      eapply ChangeEndLocalTyp; [ | eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+      }
       eapply MallocTyp with (H := Hsz'').
       2 : { constructor. exact I. }
-      2 : { simpl. eassumption. }
+      2 : { simpl.
+            match goal with
+            | [ H : Function_Ctx_empty _ |- _ ] =>
+              unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+            end. }
       simpl. econstructor.
       + eapply HasType_Valid.
         eapply HasTypeValue_update_linear_ctx_rev.
-        simpl; eauto.
+        unfold empty_Function_Ctx.
+        simpl.
+        unfold Function_Ctx_empty in H; simpl in H; destructAll; subst.
+        eapply HasTypeValue_Function_Ctx; [ | | | | eauto ].
+        all:
+          match goal with
+          | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+          end.
       + simpl; auto.
+        match goal with
+        | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+        end.
       + match goal with
         | [ H : SplitStoreTypings _ ?A,
             H' : SplitStoreTypings [?A; _] _ |- _ ] =>
@@ -4967,7 +5715,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
         eauto.
         eauto.
         eauto.
-        eauto.
+        all:
+          match goal with
+          | [ H : Function_Ctx_empty _ |- _ ] =>
+              unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+          end.
       + eassumption.
       + solve_lcvs.
       + simpl.
@@ -4979,6 +5731,17 @@ Module Preservation (M : Memory) (T : MemTyping M).
         | [ H : Forall _ [_] |- _ ] => inv H
         end.
         eapply TypeValid_Function_Ctx; eauto.
+        all:
+          match goal with
+          | [ H : Function_Ctx_empty _ |- _ ] =>
+              unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+          end.
+      + simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
+      + simpl.
+        eapply HasTypeInstruction_QualValid_usable; eauto.
+      + econstructor; eauto.
       + solve_tvs.
 
     - (* ExistPack *)
@@ -5015,53 +5778,64 @@ Module Preservation (M : Memory) (T : MemTyping M).
       { now eauto. }
 
       rewrite ExistType_subst.
-      eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ].
-      eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ].
+      eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
+      eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
       eapply MallocTyp with (H := Hs).
-
       2 : { constructor. exact I. }
-      2 : { destruct F. eassumption. }
-      2 : { destruct F. simpl in *.  eassumption. }
+      2 : { destruct F. 
+            match goal with
+            | [ H : Function_Ctx_empty _ |- _ ] =>
+                unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+            end. }
+      2 : { destruct F. simpl in *.
+            match goal with
+            | [ H : Function_Ctx_empty _ |- _ ] =>
+                unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+            end. }
 
       simpl in *.
-      rewrite loc_weak_no_effect_on_size in *; auto.
-      rewrite loc_weak_no_effect_on_qual in *; auto.
-      match goal with
-      | [ |- context[QualT (?X ?Y) _] ] =>
-        assert (Heq3 : X Y = Y)
-      end.
-      { eapply weak_loc_no_effect_on_valid_typ_empty_Function_Ctx; eauto.
-        destruct F; subst; simpl in *.
-        unfold Function_Ctx_empty in *.
-        simpl in *; destructAll; auto. }
-      match goal with
-      | [ |- context[QualT _ (?X ?Y)] ] =>
-        assert (Heq4 : X Y = Y)
-      end.
-      { destruct x12; simpl in *; auto.
-        unfold get_var'.
-        unfold under'.
-        unfold under_ks'.
-        simpl.
-        unfold get_var'.
-        unfold weaks'.
-        unfold var.
-        simpl.
-        unfold plus.
-        unfold zero.
-        unfold sing.
-        simpl.
-        repeat rewrite plus_O_n.
-        rewrite Nat.sub_0_r; auto. }
-
-      rewrite Heq3, Heq4 in *.
 
       eapply ExHT.
-      + destruct F. simpl in *. eassumption.
-      + destruct F. simpl in *. eassumption.
-      + destruct F. simpl in *. eassumption.
-      + destruct F. unfold heapable in *. simpl in *. eassumption.
+      + destruct F. simpl in *.
+        match goal with
+        | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+        end.
+        eassumption.
+      + destruct F. simpl in *.
+        match goal with
+        | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+        end.
+      + destruct F. simpl in *.
+        match goal with
+        | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+        end.
+      + destruct F. unfold heapable in *. simpl in *.
+        match goal with
+        | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+        end.
+      + destruct F. unfold heapable in *. simpl in *.
+        match goal with
+        | [ H : Function_Ctx_empty _ |- _ ] =>
+            unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+        end.
       + destruct F. eapply TypeValid_Function_Ctx; try eassumption; try (simpl; reflexivity).
+        all:
+          match goal with
+          | [ H : Function_Ctx_empty _ |- _ ] =>
+              unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+          end.
       + destruct F. simpl in *.
         unfold Function_Ctx_empty in Hempty. destructAll. simpl in *. subst.
         unfold subst'_function_ctx. simpl.
@@ -5075,7 +5849,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
               eapply SplitStoreTypings_Empty_eq in H
             end.
             eapply HasTypeValue_StoreTyping_eq; eassumption. eassumption. }
-        reflexivity. reflexivity. reflexivity. reflexivity.
+        all:
+          match goal with
+          | [ H : Function_Ctx_empty _ |- _ ] =>
+              unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+          end.
       + solve_lcvs; destruct F; subst; simpl in *; auto.
       + simpl in *.
         rewrite loc_weak_no_effect_on_size.
@@ -5083,6 +5861,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
         destruct F; subst; simpl in *.
         replace (under' subst.SPretype (subst'_of (weak subst.SLoc))) with (subst'_of (weak subst.SLoc)).
         * solve_tvs.
+          all:
+            match goal with
+            | [ H : Function_Ctx_empty _ |- _ ] =>
+                unfold Function_Ctx_empty in H; simpl in H; destructAll; subst; auto
+            end.
         * unfold Subst'.
           apply FunctionalExtensionality.functional_extensionality_dep.
           intros.
@@ -5091,8 +5874,13 @@ Module Preservation (M : Memory) (T : MemTyping M).
           apply FunctionalExtensionality.functional_extensionality.
           intros.
           rewrite under_pretype_subst_eq; auto.
+      + destruct F; simpl.
+        rewrite get_set_hd.
+        econstructor; eauto.
       + destruct F; subst; simpl in *; solve_tvs.
-
+      + econstructor; eauto.
+      + destruct F; subst; simpl in *; solve_tvs.
+        
     - (* Qualify *)
 
       eapply composition_typing_double_strong in Htyp. simpl in *; destructAll.
@@ -5123,12 +5911,25 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
       eapply QualLeq_Top.
 
-      eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ].
-      eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ].
+      eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
+      eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
       eapply ValTyp.
       simpl.
 
       eapply HasTypeValue_QualLt; eauto.
+      1:{
+        unfold Function_Ctx_empty in *.
+        destructAll; destruct F.
+        simpl in *; subst; auto.
+      }
 
       eapply HasTypeValue_StoreTyping_eq.
       eapply HasTypeValue_Function_Ctx; [| | | | eassumption  ]; destruct F; reflexivity.
@@ -5143,6 +5944,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
       destruct F; eassumption.
       destruct F; eassumption.
       destruct F; solve_lcvs.
+      destruct F; simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      eapply HasTypeInstruction_QualValid_usable; eauto.
+      econstructor; eauto.
       destruct F; solve_tvs.
 
     - (* Local *)
@@ -5169,7 +5975,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
       eapply Forall_trivial. intros [? ?]. eapply QualLeq_Top.
       eapply QualLeq_Top.
 
-      eapply ChangeEndLocalTyp; [ destruct F; subst; simpl in *; eauto | ].
+      eapply ChangeEndLocalTyp; [ | destruct F; subst; simpl in *; eauto | ].
+      {
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
       eapply HasTypeInstruction_Values with (H := Hvs).
 
       2:{ eapply Forall3_monotonic; [ | eassumption ].
@@ -5221,17 +6031,25 @@ Module Preservation (M : Memory) (T : MemTyping M).
           simpl; auto.
       }
       destruct F; subst; simpl in *; solve_lcvs.
-      solve_tvs.      
+      
+      destruct F; simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      eapply HasTypeInstruction_QualValid; eauto.
+      econstructor; eauto.
+      
+      solve_tvs.
 
     - (* Local - Trap *)
       show_tlvs Htyp.
       eapply Local_HasTypeInstruction in Htyp. destructAll.
-      eapply ChangeEndLocalTyp; [ eauto | ].
+      eapply ChangeEndLocalTyp; [ eauto | eauto | ].
       match goal with
       | [ |- HasTypeInstruction _ _ _ ?L _ _ _ ] =>
         replace L with (add_local_effects L []) at 2 by (simpl; congruence)
       end.
       eapply TrapTyp; auto.
+      eapply HasTypeInstruction_QualValid; eauto.
       
     - (* Local *)
       show_tlvs Htyp.
@@ -5281,7 +6099,11 @@ Module Preservation (M : Memory) (T : MemTyping M).
       intros [? ?]. eapply QualLeq_Top.
       eapply QualLeq_Top.
 
-      eapply ChangeEndLocalTyp; [ | eapply HasTypeInstruction_Values ].
+      eapply ChangeEndLocalTyp; [ | | eapply HasTypeInstruction_Values ].
+      1:{
+        eapply LocalCtxValid_Function_Ctx; eauto.
+        all: destruct F; auto.
+      }
       1:{
         destruct F; subst; simpl in *.
         unfold Function_Ctx_empty in *; destructAll; simpl in *; destructAll; subst.
@@ -5325,7 +6147,16 @@ Module Preservation (M : Memory) (T : MemTyping M).
         | [ H : HasTypeLocals _ _ _ _ |- _ ] => inv H
         end.
         eapply Forall3_HasTypeValue_Unrestricted_LinEmpty'; eauto. }
-      destruct F; subst; simpl in *; solve_lcvs.
+      eapply LocalCtxValid_Function_Ctx.
+      { eapply HasTypeInstruction_FirstLocalValid; eauto. }
+      1-4: destruct F; auto.
+
+      destruct F; simpl.
+      rewrite get_set_hd.
+      econstructor; eauto.
+      eapply HasTypeInstruction_QualValid; eauto.
+      econstructor; eauto.
+      
       solve_tvs.
 
     - (* CallAdm *)
@@ -5396,7 +6227,9 @@ Module Preservation (M : Memory) (T : MemTyping M).
 
       simpl.
 
-      econstructor. eapply LCEffEqual_refl.
+      econstructor.
+      eapply LocalCtxValid_Function_Ctx; eauto.
+      eapply LCEffEqual_refl.
 
       use_InstInds_subst_indices.
       intros; destructAll.
@@ -5427,8 +6260,10 @@ Module Preservation (M : Memory) (T : MemTyping M).
         eapply Forall3_length; eauto. }
 
       { simpl.
-        eapply ChangeEndLocalTyp; [ eauto | ].
-        eapply ChangeEndLocalTyp; [ eauto | ].
+        eapply ChangeEndLocalTyp; [ | eauto | ].
+        { eapply LocalCtxValid_Function_Ctx; eauto. }
+        eapply ChangeEndLocalTyp; [ | eauto | ].
+        { eapply LocalCtxValid_Function_Ctx; eauto. }
         eapply LocalTyp; eauto.
         rewrite map_length; auto.
         eapply ConfTypFull with
@@ -5589,7 +6424,29 @@ Module Preservation (M : Memory) (T : MemTyping M).
             replace TAU1P with (subst.subst_indices IDXS TAU1);
             [ replace TAU2P with (subst.subst_indices IDXS TAU2) at 2 | ]
           end.
-          * eapply HasTypeInstruction_eq_sizes.
+          * eapply HasTypeInstruction_eq_sizes_weak.
+            2:{
+              eapply Forall_app.
+              split.
+              all: rewrite Forall_forall.
+              all: intros.
+              all: destruct_prs.
+              1:
+                match goal with
+                | [ H : In _ (combine _ _) |- _ ] =>
+                    apply in_combine_r in H
+                end.
+              all:
+                repeat match goal with
+                | [ H : In _ (map _ _) |- _ ] =>
+                    apply in_map_inv in H; destructAll
+                end.
+              2:
+                match goal with
+                | [ H : (_, _) = (_, _) |- _ ] => inv H
+                end.
+              all: econstructor; eauto.
+            }
             2:{
               eapply HasTypeInstruction_subst_indices; eauto.
               - eapply InstIndsValid_Function_Ctx_stronger; [ | | | | eauto ].
@@ -5626,7 +6483,7 @@ Module Preservation (M : Memory) (T : MemTyping M).
             unfold update_ret_ctx.
             simpl.
             apply Forall2_app.
-            all: eapply (Forall2_split (P1:=(fun t1 t2 => t1 = t2)) (P2:=(fun sz0 sz1 => SizeLeq [] sz0 sz1 = Some true /\ SizeLeq [] sz1 sz0 = Some true))).
+            1-2: eapply (Forall2_split (P1:=(fun t1 t2 => t1 = t2)) (P2:=(fun sz0 sz1 => SizeLeq [] sz0 sz1 = Some true /\ SizeLeq [] sz1 sz0 = Some true))).
             1,6: intros.
             1-2:
               match goal with
@@ -5792,7 +6649,21 @@ Module Preservation (M : Memory) (T : MemTyping M).
             destruct A; subst; simpl in *; auto
           end.
         + solve_lcvs.
-        + solve_tvs. }
+        + solve_tvs.
+        + simpl.
+          rewrite get_set_hd.
+          econstructor; eauto. }
+
+      simpl.
+      eapply HasTypeInstruction_QualValid_usable.
+      {
+        match goal with
+        | [ H : HasTypeInstruction _ _ _ _ (_ ++ [CallAdm _ _]) _ _ |- _ ] => exact H
+        end.
+      }
+      all: simpl; auto.
+      econstructor; eauto.
+          
       solve_tvs.
 
     Unshelve.

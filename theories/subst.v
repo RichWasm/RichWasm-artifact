@@ -330,7 +330,10 @@ Fixpoint subst'_value (su : Subst' Kind) (v : Value) {struct v} : Value :=
   match v with
   | NumConst _ _ => v
   | Tt => v
-  | Coderef modi tabi ixs => Coderef modi tabi (subst_ext' su ixs)
+  (* We don't substitute into Coderef
+     because Coderef can not show up in surface instructions
+     and CoderefTyp ensures ixs is closed *)
+  | Coderef modi tabi ixs => Coderef modi tabi ixs
   | Fold v => Fold (subst'_value su v)
   | Prod vs => Prod (map (subst'_value su) vs)
   | Ref l => Ref (subst'_loc su l)
@@ -482,10 +485,11 @@ Fixpoint subst'_instruction (su : Subst' Kind) (i : Instruction) {struct i} : In
      because HasTypeConf requires vs and insns to be closed *)
   | Local m n vs ss insns =>
     Local m n vs ss insns
+  (* We don't substitute into Malloc
+     because Malloc is not a surface instruction
+     and MallocTyp requires s, hv, q to be closed *)
   | Malloc s hv q =>
-    Malloc (subst'_size su s)
-           (subst'_heapvalue su hv)
-           (subst'_qual su q)
+    Malloc s hv q
   | Free => i
   end.
 
@@ -637,7 +641,7 @@ Proof. cbn; autorewrite with SubstDB; reflexivity. Qed.
 Hint Rewrite subst_FunT : SubstDB.
 
 Lemma subst_Coderef (su : Subst Kind) n m is :
-  subst_ext su (Coderef n m is) = Coderef n m (subst_ext su is).
+  subst_ext su (Coderef n m is) = Coderef n m is.
 Proof eq_refl.
 Hint Rewrite subst_Coderef : SubstDB.
 

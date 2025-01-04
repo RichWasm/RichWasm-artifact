@@ -1720,6 +1720,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
     specialize (size_valid_empty_implies_to_nat _ Hy_valid).
     intro H200.
     destruct H200 as [ny Hy].
+    destruct Hleq as [Hvalid Hleq].
     apply (SizeLeq_Const _ _ _ _ Hnsztau Hy) in Hleq.
     eapply SizeOfValue_Typecheck_Actual in H11; eauto.
     assert (Hlen_is1 : length is1 = length taus1) by now apply Forall2_length in Htaus_is1.
@@ -1909,6 +1910,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
   Lemma br_in_hole_implies_depth_instr S C F L es t L' n ctx k :
     HasTypeInstruction S C F L es t L' ->
     es = ctx_app n ctx [Br k] ->
+    qual F = [] ->
     k < n + length (label F).
   Proof.
     revert S C F L es t L' k; induction ctx as [vs es'|k' vs i tf es1 ctx IHctx es2];
@@ -1916,30 +1918,37 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
     - cbn; intros Hty ->; destruct t as [taus1' taus2'].
       apply composition_typing in Hty.
       destruct Hty as [frame [taus1 [taus3' [taus2'' [Lvs [qf stuff]]]]]].
-      destruct stuff as [Svs [Srest [-> [-> [Hframe [Hleq [Hvs [Hbres HS]]]]]]]].
+      destruct stuff as [Svs [Srest [-> [-> [Hframe [Hleq [Hqual1 [Hqual2 [Hvs [Hbres HS]]]]]]]]]].
       change (?x :: ?xs) with ([x] ++ xs) in Hbres.
       apply composition_typing in Hbres.
       destruct Hbres as [frame' [taus2 [taus3 [taus23 [Lbr [qbr stuff]]]]]].
-      destruct stuff as [Sbr [Srest' [-> [-> [Hframe' [Hleq' [Hbr [Hes HSrest]]]]]]]].
+      destruct stuff as [Sbr [Srest' [-> [-> [Hframe' [Hleq' [Hqual1' [Hqual2' [Hbr [Hes HSrest]]]]]]]]]].
+      intros.
       apply Br_HasTypeInstruction in Hbr.
+      2:{
+        destruct F; cbn in *; auto.
+      }
       destructAll.
+      intros.
       destruct F; cbn in *.
       eapply nth_error_Some_length; eauto.
     - cbn; intros Hty ->; destruct t as [taus1' taus2'].
+      intros.
       apply composition_typing in Hty.
       destruct Hty as [frame [taus1 [taus3' [taus2'' [Lvs [qf stuff]]]]]].
-      destruct stuff as [Svs [Srest [-> [-> [Hframe [Hleq [Hvs [Hlabeles HS]]]]]]]].
+      destruct stuff as [Svs [Srest [-> [-> [Hframe [Hleq [Hqual1 [Hqual2 [Hvs [Hlabeles HS]]]]]]]]]].
       change (?x :: ?xs) with ([x] ++ xs) in Hlabeles.
       apply composition_typing in Hlabeles.
       destruct Hlabeles as [frame' [taus2 [taus3 [taus23 [Lbr [qbr stuff]]]]]].
-      destruct stuff as [Sbr [Srest' [-> [-> [Hframe' [Hleq' [Hlabel [Hes HSrest]]]]]]]].
+      destruct stuff as [Sbr [Srest' [-> [-> [Hframe' [Hleq' [Hqual1' [Hqual2' [Hlabel [Hes HSrest]]]]]]]]]].
       apply Label_HasTypeInstruction in Hlabel.
       destructAll; lazy zeta in *; destructAll.
       match goal with
       | H : HasTypeInstruction _ _ _ _ (ctx |[ [Br k] ]|) _ _ |- _ =>
-        eapply IHctx in H; [|reflexivity]; clear - H
+        eapply IHctx in H; [|reflexivity|]
       end.
-      destruct F; cbn in *. lia.
+      -- destruct F; cbn in *. lia.
+      -- destruct F; cbn in *; auto.
   Qed.
   
   Lemma br_in_hole_implies_depth_conf : forall S taus1 i vs szs es taus2,
@@ -1974,6 +1983,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
     ctx_app n ctx [Ret] = es ->
     HasTypeInstruction S C F L es (Arrow [] taus1) L' ->
     ret F = Some taus2 ->
+    qual F = [] ->
     exists vs ctx',
       ctx_app n ctx' (map Val vs ++ [Ret]) = es /\ length vs = length taus2.
   Proof.
@@ -1991,10 +2001,14 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         apply composition_typing in H;
         lazy zeta in *; destructAll
       end.
+      intros.
       match goal with
       | H : HasTypeInstruction _ _ _ _ [Ret] _ _ |- _ =>
         apply Ret_HasTypeInstruction in H; destructAll
       end.
+      2:{
+        destruct F; cbn in *; auto.
+      }
       match goal with
       | H1 : ret _ = Some ?v1, H2 : ret F = Some ?v2 |- _ =>
         let Heq := fresh in
@@ -2018,7 +2032,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
       end.
       split; [|lia].
       cbn; rewrite !app_assoc, <- map_app, firstn_skipn, <- app_assoc; split; auto.
-    - intros* Hes Hty Hnth. cbn in *; subst es.
+    - intros* Hes Hty Hnth. intros. cbn in *; subst es.
       apply composition_typing in Hty; lazy zeta in *; destructAll.
       match goal with
       | H : [] = ?xs ++ ?ys |- _ =>
@@ -2036,21 +2050,23 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
       end.
       match goal with
       | H : HasTypeInstruction _ _ _ _ (ctx |[ [Ret] ]|) _ _ |- _ =>
-        eapply IHctx in H; (try reflexivity); [|destruct F; cbn in *; now eauto];
-        destruct H as [ihvs [ihctx [<- Hihvs]]]
+        eapply IHctx in H; (try reflexivity); [|destruct F; cbn in *; now eauto|];
+        [destruct H as [ihvs [ihctx [<- Hihvs]]] | ]
       end.
-      exists ihvs; unshelve eexists; [apply LSucc_label|split]; try reflexivity; auto.
+      -- exists ihvs; unshelve eexists; [apply LSucc_label|split]; try reflexivity; auto.
+      -- destruct F; cbn in *; auto.
   Qed.
   
   Lemma br_reduce_extract_vs : forall n ctx es S C F L L' taus1 taus2 L'' k,
     ctx_app n ctx [Br (n + k)] = es ->
     HasTypeInstruction S C F L es (Arrow [] taus1) L' ->
     nth_error (label F) k = Some (taus2, L'') ->
+    qual F = [] ->
     exists vs ctx',
       ctx_app n ctx' (map Val vs ++ [Br (n + k)]) = es /\ length vs = length taus2.
   Proof.
     induction ctx as [vs es'|k' vs i tf es1 ctx IHctx es2].
-    - cbn; intros* <- Hty Hnth.
+    - cbn; intros* <- Hty Hnth. intros.
       apply composition_typing in Hty. lazy zeta in *; destructAll.
       match goal with
       | H : [] = ?xs ++ ?ys |- _ =>
@@ -2066,6 +2082,9 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
       | H : HasTypeInstruction _ _ _ _ [Br k] _ _ |- _ =>
         apply Br_HasTypeInstruction in H; destructAll
       end.
+      2:{
+        destruct F; cbn in *; auto.
+      }
       match goal with
       | H1 : nth_error _ k = Some ?v1, H2 : nth_error (label ?F) k = Some ?v2 |- _ =>
         let Heq := fresh in
@@ -2088,7 +2107,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
       end.
       split; [|lia].
       cbn; rewrite !app_assoc, <- map_app, firstn_skipn, <- app_assoc; split; auto.
-    - intros* Hes Hty Hnth. cbn in *; subst es.
+    - intros* Hes Hty Hnth. intros. cbn in *; subst es.
       replace (Datatypes.S (k' + k)) with (k' + (Datatypes.S k)) in * by lia.
       apply composition_typing in Hty; lazy zeta in *; destructAll.
       match goal with
@@ -2107,10 +2126,11 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
       end.
       match goal with
       | H : HasTypeInstruction _ _ _ _ (ctx |[ [Br _] ]|) _ _ |- _ =>
-        eapply IHctx in H; (try reflexivity); [|destruct F; cbn in *; now eauto];
-        destruct H as [ihvs [ihctx [<- Hihvs]]]
+        eapply IHctx in H; (try reflexivity); [|destruct F; cbn in *; now eauto|];
+        [destruct H as [ihvs [ihctx [<- Hihvs]]] | ]
       end.
-      exists ihvs; unshelve eexists; [apply LSucc_label|split]; try reflexivity; auto.
+      -- exists ihvs; unshelve eexists; [apply LSucc_label|split]; try reflexivity; auto.
+      -- destruct F; cbn in *; auto.
   Qed.
   
   Lemma HasTypeStore_weakening : forall s Sh S_rest S_whole,
@@ -2866,7 +2886,10 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         invert H1.
         invert H17.
         destruct (Forall3_nth_error _ _ _ _ _ locs0 L _ _  e0 H2) as [S' [v [H20 [H21 H22]]]].
-        exists s. exists (set_nth locs0 i0 y). exists []. exists [].
+        match goal with
+        | [ X : Store |- _ ] => exists X
+        end.
+        exists (set_nth locs0 i0 y). exists []. exists [].
         eapply StepFull.
         destruct (H11 _ _ _ e0) as [n [H30 H31]].
         eapply red_set_local; eauto.
@@ -2890,7 +2913,10 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         invert H.
         invert H1.
         invert H17.
-        exists s. exists locs0. exists [y; y]. exists  [Set_local i0].
+        match goal with
+        | [ X : Store |- _ ] => exists X
+        end.
+        exists locs0. exists [y; y]. exists  [Set_local i0].
         eapply StepSimple.
         eapply red_tee_local.
       - (* get_global *)
@@ -3311,7 +3337,11 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           specialize (H400 eq_refl).
           assert (H405 := struct_update_size _ _ _ _ _ _ _ _ _ _ _ (fold_is_size_as_nat szs0 n' H26) H400 H32 e0 H404 e3 H402 e5).
           destruct (set_spec1 _ _ _ _ _ _ H31 (nat_n_swap _ _ H405)) as [m H410].
-          exists (Build_Store (inst s) m (out_set s)). exists locs0.
+          match goal with
+          | [ X : Store |- _ ] =>
+              exists (Build_Store (inst X) m (out_set X))
+          end.
+          exists locs0.
           match goal with
           | [ |- context[LocP ?L _] ] =>
             exists [Ref (LocP L Unrestricted)]
@@ -3369,8 +3399,8 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           assert (H405 := struct_update_size _ _ _ _ _ _ _ _ _ _ _ (fold_is_size_as_nat _ _ H19) H400 H32 e0 H404 e3 H402 e5).
           destruct (set_spec1 _ _ _ _ _ _ H31 (nat_n_swap _ _ H405)) as [m H410].
           match goal with
-          | [ |- context[LocP ?L _] ] =>
-            exists (update_out_set L (Build_Store (inst s) m (out_set s)) (Struct vs) (Struct (set_nth vs n y0)))
+          | [ X : Store |- context[LocP ?L _] ] =>
+            exists (update_out_set L (Build_Store (inst X) m (out_set X)) (Struct vs) (Struct (set_nth vs n y0)))
           end.
           exists locs0.
           match goal with
@@ -3446,7 +3476,11 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           specialize (H400 eq_refl).
           assert (H405 := struct_update_size _ _ _ _ _ _ _ _ _ _ _ (fold_is_size_as_nat _ _ H26) H400 H32 e0 H404 e2 H402 e4).
           destruct (set_spec1 _ _ _ _ _ _ H31 (nat_n_swap _ _ H405)) as [m H410].
-          exists (Build_Store (inst s) m (out_set s)). exists locs0.
+          match goal with
+          | [ X : Store |- _ ] =>
+              exists (Build_Store (inst X) m (out_set X))
+          end.
+          exists locs0.
           match goal with
           | [ |- context[LocP ?L _] ] =>
             exists [Ref (LocP L Unrestricted); v]
@@ -3504,8 +3538,8 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           assert (H405 := struct_update_size _ _ _ _ _ _ _ _ _ _ _ (fold_is_size_as_nat _ _ H19) H400 H32 e0 H404 e2 H402 e4).
           destruct (set_spec1 _ _ _ _ _ _ H31 (nat_n_swap _ _ H405)) as [m H410].
           match goal with
-          | [ |- context[LocP ?L _] ] =>
-            exists (update_out_set L (Build_Store (inst s) m (out_set s)) (Struct vs) (Struct (set_nth vs n y0))); exists locs0; exists [Ref (LocP L Linear); v]; exists []
+          | [ X : Store |- context[LocP ?L _] ] =>
+            exists (update_out_set L (Build_Store (inst X) m (out_set X)) (Struct vs) (Struct (set_nth vs n y0))); exists locs0; exists [Ref (LocP L Linear); v]; exists []
           end.
           simpl.
           eapply StepFull.
@@ -3639,7 +3673,6 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         invert H14.
         + invert q1.
           2 : {rewrite H5 in H12. rewrite nth_error_nil in H12. discriminate. }
-          rewrite H5 in H24.
           eapply QualLeq_Bottom_Const in H24.
           inversion H24; subst.
           rewrite H5 in e1.
@@ -3912,7 +3945,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         invert H.
         invert H1.
         invert H17.
-        exists s1. exists locs0. exists []. exists [Malloc (SizePlus (SizeConst 64) (size_of_value y)) (Pack p y (Ex sz0 q (debruijn.subst_ext (debruijn.weak subst.SLoc) (QualT hp hq)))) q].
+        exists s1. exists locs0. exists []. exists [Malloc (SizePlus (SizeConst 64) (size_of_value y)) (Pack p y (Ex sz0 q (QualT hp hq))) q].
         eapply StepSimple.
         simpl.
         eapply red_exist_pack.
@@ -4031,7 +4064,6 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         invert H15.
         + invert q1.
           2 : {rewrite H6 in H13. rewrite nth_error_nil in H13. discriminate. }
-          rewrite H6 in H25.
           eapply QualLeq_Bottom_Const in H25.
           inversion H25; subst.
           rewrite H6 in e0.
@@ -4230,6 +4262,9 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           assert (ctx_app n' ctx' [Br (n' + 0)] = es2) by (rewrite<- plus_n_O; eauto).
           eapply br_reduce_extract_vs in H15; eauto.
           2 : {induction F. simpl. easy. }
+          2:{
+            destruct F; cbn in *; auto.
+          }
           destruct H15 as [vs' [ctx'' [H20 H21]]].
           rewrite<- plus_n_O in H20.
           rewrite<- H20.
@@ -4342,7 +4377,7 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
         rewrite map_empty.
         rewrite app_nil_l.
         invert q0.
-        2 : {rewrite H6 in H14. rewrite nth_error_nil in H14. discriminate. }
+        2 : { rewrite nth_error_nil in H14. discriminate. }
         assert (exists l' s', alloc_mem_range s const sz0 H hv = Some (l', s') \/ alloc_mem_range s const sz0 H hv = None).
         destruct (alloc_mem_range s const sz0 H hv); eauto.
         destruct p.
@@ -4374,7 +4409,6 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           rewrite H5 in e0.
           eapply QualLeq_Top_Const in e0.
           inversion e0; subst.
-          rewrite H5 in H23.
           eapply QualLeq_Const_False in H23.
           easy.
         + simpl in H0.
@@ -4427,7 +4461,8 @@ Lemma local_typings_linear_label_agnostic : forall (A : Type) S_locals F locs (t
           intros.
           assert (h' : HasTypeInstruction S1 C F L1 (map Val x) (Arrow taus1 tau2) L1).
           { eapply ChangeEndLocalTyp; eauto.
-            apply LCEffEqual_sym; auto. }
+            - eapply HasTypeInstruction_FirstLocalValid; eauto.
+            - apply LCEffEqual_sym; auto. }
           destruct (specialize_instruction_value_typing _ _ _ _ _ _ _ _ _ _ _ _ _ H3 h' H2 s) as [Ss [H30 H31]].
           assert (H4' : Forall3 (fun (S' : StoreTyping) (v : Value) '(t, _) => HasTypeValue S' F v t) S_locals locs0 L2).
           { eapply LCEffEqual_Forall3_arg3; eauto. }
