@@ -24,8 +24,6 @@ docker run -it richwasm
 
 We have provided a pre-built docker image on [DockerHub](https://hub.docker.com/r/richwasm/richwasm-artifact-image). Get the container running with the following commands.
 
-Note that this pre-built Docker image contains the artifact as it was when we submitted it to artifact evaluation for PLDI24. However, the proofs have been updated since the artifact was submitted (see the below "Note about Paper" in the "Coq Proofs" section of this README), so this pre-built Docker image contains an older version of the proofs than the proofs in this GitHub repo.
-
 ```
 # Pull Docker image from DockerHub
 docker pull richwasm/richwasm-artifact-image
